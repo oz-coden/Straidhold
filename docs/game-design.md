@@ -36,6 +36,22 @@ Every character can move, attack, farm, use items, deploy a capture device, and 
 
 Controlling points may generate resources, create favorable positioning, or improve access to neutral enemies. Headquarters are separate targets, enabling a direct attack as an alternate victory route. A five-point map and a ~30-second activation timer are initial examples, not fixed requirements.
 
+## Frontline pressure and headquarters protection
+
+**Design direction:** Going directly to the enemy headquarters before taking territory should be possible, but generally risky and inefficient. Do not make capture points hard gates or disallow flanking routes: concentrated investment in an assault character and a coordinated headquarters rush must remain viable as high-risk strategies.
+
+Use a **supply-line / territorial support** model. The map may define adjacency between controlled points and staging areas. Connected friendly territory allows safer resupply, repairs, temporary deployment, and more favorable access to the enemy base. When a team bypasses unclaimed or enemy-held territory, disadvantages increase with the depth of unsupported penetration.
+
+Possible effects to evaluate:
+- Reduced or unavailable forward resupply and healing rather than a blanket damage or movement debuff.
+- Longer return trips after respawn because forward staging locations are unavailable.
+- Enemy headquarters defenses stay fully powered while nearby support points remain hostile; capturing connected points weakens selected defensive systems.
+- Supply routes can be raided or disrupted, enabling counterplay from either side.
+
+**Fairness constraints:** Apply the same topology and rules to both factions, whether controlled by AI or humans. Clearly visualize frontlines, connected points, and the reason for any penalty. Avoid an automatic win condition triggered only by capturing a particular path; a difficult direct headquarters assault should still be technically possible.
+
+**Open tuning:** How to measure unsupported depth, whether supply depends on connectivity or just local point ownership, the defensive benefit of each point, and how severely a rush should be penalized. Test direct rush vs. staged capture vs. diversionary assault with headless simulations and human playtests.
+
 ## Economy
 
 Currency is held across rounds **without a carryover cap** under the current proposal. Each round grants base income; outcome-based income, losing-streak support, neutral-enemy rewards, and objective income are candidate sources. Players should be able to transfer resources or contribute to a team pool so one carry can receive concentrated investment.
@@ -71,7 +87,7 @@ The AI must use the same resource, capture, skill, and combat systems as humans.
 
 ## Outstanding decisions
 
-- Exact map topology, number and placement of points, capture-device arming/counterplay, and headquarters defenses.
+- Exact map topology, number and placement of points, capture-device arming/counterplay, headquarters defenses, and supply-line connectivity/pressure tuning.
 - Tie/overtime rules and whether contested devices affect end-of-round ownership.
 - Specific income amounts, equipment prices, respawn curve, and interest rate/cap.
 - Character roster, upgrades, cooldowns, and whether identical characters can be selected by multiple players.

@@ -157,3 +157,71 @@ Tank interception is **non-recursive**: only damage from an original hit can be 
 Every character has a **normal regenerating shield** and **flesh HP**. Their base proportions should be consistent across characters rather than class-specific. Damage normally passes through layers in this order: **Support special barrier → Tank interception (if applicable) → normal shield → flesh HP**. Damage that spills over a depleted **normal shield** continues to flesh HP. Flesh HP has **no passive regeneration**; it heals while at own headquarters, from purchased healing items, or through character abilities. Exact maximum values and headquarters healing rate are TBD.
 
 After **3 seconds without taking a hit**, the normal shield regenerates at a fixed rate of **20% of its maximum per second** (zero to full in 5 regeneration seconds, or ~8 seconds including waiting). **A hit absorbed entirely by a special barrier still resets this regeneration timer**. Moving and attacking do not by themselves prevent recovery. The Support barrier is a **separate outer layer** of up to 100 durability, single-target, with an expiration time. If one hit exceeds its remaining durability, the barrier is destroyed and **all overflow from that hit is ignored**; only the next hit reaches the inner layers. A shield-refill specialist and a flesh-HP healer are potential distinct character designs, not yet fixed characters.
+
+## Initial Assassin character roster (provisional)
+
+The first three Assassin character concepts are **Rush**, **First Strike**, and **Warp Flanker** (descriptive working names, not final character names). They share the non-upgradeable Assassin class passive and active above, but each has three independently upgradeable character abilities (levels 0–3). Their roles deliberately differ: sustained close combat, prepared front-loaded burst, and terrain-based repositioning/back attacks.
+
+**Balance baseline and calculation:** A standard character is provisionally modeled with 100 normal shield + 100 flesh HP. Standard basic attack DPS is approximately 20 before defenses and bonuses; characters can use different attack intervals. The Assassin class active's outgoing-damage bonus is tentatively **+20%** (duration and cooldown TBD). Outgoing damage modifiers are **additive percentage-point bonuses**, not multiplicative: a +30% first-strike bonus and +20% class bonus produce 150% of base damage; a 1.8× back-attack modifier counts as +80%, and with +20% class bonus produces 200% of base damage. These are tuning targets, not evidence of implemented balance. Incoming mitigation, special barriers, and interception resolve separately.
+
+### Assassin A — Rush / reactive brawler
+
+**Identity:** A straightforward melee fighter whose damage increases as the opponent hits them. The five-stack power window is deliberately obvious via HUD, character effects, and a short countdown, so beginners can unleash their skills during the window while experienced players manage timing. Particularly vulnerable to opponents who attack in few heavy hits or can survive the burst window.
+
+- **Basic attack:** 10 damage every 0.5 seconds (20 DPS); hold to repeat.
+- **Unique passive — reactive stacks:** Each distinct qualifying hit received grants one stack, maximum five. Each stack increases **all outgoing damage**, including basic attacks and damaging skills, by the percentage below. On the first stack, begin a 3-second stack-expiry timer; qualifying hits while at stacks 1–4 refresh the timer to 3 seconds. Reaching stack five fixes a final **3-second maximum-stack window**: further hits **do not extend it**. At expiry, clear all stacks and prevent new stack accumulation for **5 seconds**. Hits by neutral monsters can build stacks.
+- **Unique active 1 — heavy strike:** An independent direct-damage melee skill, separate from the held basic attack.
+- **Unique active 2 — damaging blink:** Reposition along a path, dealing **30 damage** to enemies crossed regardless of upgrade. Distance grows with upgrades; base distance and geometric/collision rules TBD.
+
+| Level | Passive damage **per stack** | Passive bonus at five | Heavy strike damage | Heavy strike CD | Blink distance vs. base | Blink CD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | +1% | +5% | 40 | 15 s | 100% | 45 s |
+| 1 | +2% | +10% | 45 | 13 s | 110% | 40 s |
+| 2 | +3% | +15% | 50 | 12 s | 125% | 35 s |
+| 3 | +6% | +30% | 60 | 10 s | 150% | 30 s |
+
+At all three unique abilities' maximum upgrade, five stacks (+30%) plus the tentative class active (+20%) give +50% outgoing damage: a heavy strike is 90, and a damaging blink is 45 before mitigation. Define precisely which hit events (barrier-only hits, damage-over-time ticks, multi-hit abilities) generate stacks during implementation.
+
+### Assassin B — First Strike / prepared burst
+
+**Identity:** Close-range assassin seeking to engage before the target can hit back. A no-damage pull creates an opening for a heavy single strike. Unlike Rush, being struck first prevents the first-hit reward.
+
+- **Basic attack benchmark:** 20 damage once per second (20 DPS).
+- **Unique passive — first strike:** A **character-owned**, not per-target, readiness state. Only the **first damaging hit** landed while ready receives the bonus below, whether from a basic attack or damage skill; then readiness is consumed. Being hit before landing the first damaging attack removes readiness without granting the bonus. Readiness returns after **10 consecutive seconds without attacking or being hit**; attacking or being hit restarts that quiet-time timer. A non-damaging pull does not itself consume the attack bonus; its interaction with the 'without attacking' timer should be made explicit in implementation.
+- **Unique active 1 — pull:** Select one enemy within range and pull them close. **The pull deals zero damage.** Its target range (not the enemy's traveled distance) scales with upgrade. Initial range and line-of-sight/obstacle restrictions TBD.
+- **Unique active 2 — execution strike:** High-damage close-range attack with a relatively long cooldown.
+
+| Level | First-hit damage bonus | Pull range vs. base | Pull CD | Execution damage | Execution CD |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0 | +15% | 100% | 45 s | 50 | 35 s |
+| 1 | +20% | 110% | 40 s | 60 | 30 s |
+| 2 | +25% | 125% | 35 s | 70 | 25 s |
+| 3 | +30% | 150% | 30 s | 80 | 20 s |
+
+At full upgrades, applying the first-hit +30% and tentative class-active +20% to the 80-damage execution yields **120 damage** before defense. The readiness indicator should be visually legible; the first-hit bonus must not be recreated separately for each enemy.
+
+### Assassin C — Warp Flanker / terrain infiltration
+
+**Identity:** A mobile close-range flanker who bypasses ordinary map obstacles with a very short teleport, attacks from behind, and escapes before retaliation. **Neither invisibility nor clones** are part of this concept. Positioning and charge management are its primary skill expression.
+
+- **Unique passive — unseen mobility:** While **outside the opposing team's current vision**, gain the movement bonus below. It stacks additively with the Assassin class's +10% base movement bonus: +15/20/25/30% total base movement bonus when unseen at levels 0/1/2/3. When observed, only the class bonus remains. Decide later whether showing this passive's readiness should intentionally reveal that the enemy has vision.
+- **Unique active 1 — short warp:** Teleport to a valid destination even across an ordinary wall, without damaging anyone. Always **maximum two stored charges**, with **sequential** recharge (e.g., both charges depleted at level 3 recover after 5 and 10 seconds). Destination must be traversable; special no-teleport boundaries such as headquarters protections may be required. Each level sets maximum displacement and recharge time below.
+- **Unique active 2 — back ambush:** A direct-damage active, **not** a modified next basic attack. Damage is multiplied by the back-hit bonus when the hit originates from the target's rear; a front/side hit uses normal damage. Any successful hit applies **−20% movement speed and −20% basic attack speed**: **1 second on front/side hits, 3 seconds on rear hits**. The back-angle criterion (e.g., rear 120°), facing rules, and interactions with stacking slows remain TBD.
+
+| Level | Unseen move speed | Warp max distance | Warp recharge per charge | Ambush base damage | Rear multiplier | Ambush rear damage (no class active) | Ambush CD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | +5% | 2.5 tiles | 10 s | 40 | 1.5× | 60 | 30 s |
+| 1 | +10% | 2.5 tiles | 8 s | 45 | 1.6× | 72 | 25 s |
+| 2 | +15% | 3 tiles | 7 s | 50 | 1.7× | 85 | 20 s |
+| 3 | +20% | 4 tiles | 5 s | 60 | 1.8× | 108 | 15 s |
+
+Rear multipliers are represented as additive damage modifiers alongside the class damage boost: at max level, **60 × (1 + 0.80 rear + 0.20 class active) = 120** before defenses. A front/side hit with the same class active deals **72**. The character has a stronger and more frequently available ambush than First Strike when flanking succeeds, but relies on reaching the target's rear and managing two short warp charges. Confirm this trade-off through playtests; rear-hit accessibility and warp evasion are critical balance risks.
+
+### Assassin-specific open questions
+
+- Final character names, appearances, animations, base attack ranges, facing indicators, precise hitboxes, and crowd-control rules.
+- Assassin common active duration and cooldown (the +20% damage amount is a provisional balance assumption, not finalized).
+- Precise first-strike timer reset semantics for non-damaging ability use, along with qualification rules for reactive stacks and shield-absorbed hits.
+- Collision, warp routing/arrival validity, restricted geometry, rear-hit angles, and whether an enemy turning during a warp can reliably counter an ambush.
+- Whether repeated movement/attack-speed debuffs refresh, stack, or use the strongest effect; interaction with powered enemy-corridor slows.
+- Benchmark survivability and matchups against Tank interception and Support's overflow-negating special barrier; test all numbers with AI and human PvP before locking balance.

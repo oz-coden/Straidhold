@@ -217,6 +217,26 @@ At full upgrades, applying the first-hit +30% and tentative class-active +20% to
 
 Rear multipliers are represented as additive damage modifiers alongside the class damage boost: at max level, **60 × (1 + 0.80 rear + 0.20 class active) = 120** before defenses. A front/side hit with the same class active deals **72**. The character has a stronger and more frequently available ambush than First Strike when flanking succeeds, but relies on reaching the target's rear and managing two short warp charges. Confirm this trade-off through playtests; rear-hit accessibility and warp evasion are critical balance risks.
 
+### Assassin D — Kill Chain / elimination momentum
+
+**Identity:** A close-range assassin who builds momentum by personally finishing enemy combatants. Unlike Rush, maximum stacks may be **refreshed indefinitely** by qualifying events. Ordinary neutral-monster farming does **not** generate stacks. The first elimination is difficult; successive eliminations become easier, so balance should be tested against both human and AI teams.
+
+- **Unique passive — elimination stacks:** Award **+1 stack only when this character deals the killing blow** to an opposing human player or a player-equivalent AI combatant. Maximum **five**. Each stack increases **all outgoing damage** by the level-dependent percentage below, additive with the Assassin class damage active. Every eligible killing blow refreshes the **whole-stack expiration timer**, including when already at five stacks. On expiry, clear all stacks; there is **no post-expiry accumulation cooldown**.
+- **Maintenance without accumulation:** An assist on an opposing human/player-equivalent AI elimination, or personally killing a neutral monster, **refreshes the expiration timer but does not grant stacks**. An assist is actual credited participation in an elimination, not merely standing nearby. Refreshing while at zero does not create stacks. Neutral monsters never count as player-equivalent units simply because they are AI-controlled.
+- **Unique active 1 — finishing strike:** A direct-damage melee skill. If **this skill delivers the killing blow** to an opposing player/player-equivalent AI, grant **one additional stack** on top of the normal killing-blow stack, i.e. **+2 total**, capped at five. A neutral monster killed by this skill grants no stacks (but may refresh existing stacks).
+- **Unique active 2 — assault dash:** A movement skill with context-sensitive behavior. When an opposing combatant is within targeting range, the dash **automatically steers/pulls the caster toward a target** and on contact deals damage and applies a brief stun. When no eligible opposing combatant is within range, use the same ability as a **plain directional dash**, with no contact-damage/stun event. Prefer a target near the player's input direction if several are eligible, rather than arbitrarily selecting one. Exact distance, target acquisition priority, obstacle collision, and whether a non-target collision ends the dash are still open.
+
+| Level | Damage bonus per passive stack | Maximum bonus at 5 stacks | Stack lifetime | Finishing strike damage | Finishing strike CD | Assault dash damage | Assault dash stun | Assault dash CD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | +3% | +15% | 10 s | 30 | 15 s | 20 | 0.5 s | 30 s |
+| 1 | +4% | +20% | 15 s | 35 | 13 s | 25 | 0.6 s | 25 s |
+| 2 | +5% | +25% | 17 s | 40 | 11 s | 30 | 0.8 s | 20 s |
+| 3 | +6% | +30% | 20 s | 50 | 9 s | 40 | 1.0 s | 15 s |
+
+The **cooldown sequence of assault dash (30/25/20/15 s)**, the **stack lifetime sequence (10/15/17/20 s)**, and the **last-hit-only stack acquisition** are deliberate design decisions. The strike/dash damage and dash stun values remain **initial proposals subject to balance tests**. Stun prevents movement, basic attacks, and active ability use while applied (subject to general crowd-control rules still to be set).
+
+This character is *not* meant to build damage by endlessly farming monsters; killing monsters only lets already-earned combat momentum persist. Kill credits and assists must be decided by the authoritative combat simulation, consistently for humans and player-equivalent AI. Test finishing-strike kill attribution, simultaneous lethal hits, dash auto-targeting near multiple enemies, and whether a skilled player's momentum becomes too dominant once started.
+
 ### Assassin-specific open questions
 
 - Final character names, appearances, animations, base attack ranges, facing indicators, precise hitboxes, and crowd-control rules.

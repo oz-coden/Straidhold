@@ -42,11 +42,11 @@ Controlling points may generate resources, create favorable positioning, or impr
 
 Use a **supply-line / territorial support** model. The map may define adjacency between controlled points and staging areas. Connected friendly territory allows safer resupply, repairs, temporary deployment, and more favorable access to the enemy base. When a team bypasses unclaimed or enemy-held territory, disadvantages increase with the depth of unsupported penetration.
 
-Possible effects to evaluate:
-- Reduced or unavailable forward resupply and healing rather than a blanket damage or movement debuff.
-- Longer return trips after respawn because forward staging locations are unavailable.
-- Enemy headquarters defenses stay fully powered while nearby support points remain hostile; capturing connected points weakens selected defensive systems.
-- Supply routes can be raided or disrupted, enabling counterplay from either side.
+Established mechanical direction (specified more precisely below):
+- Friendly connected corridors speed movement; enemy corridors slow movement according to frontline invasion depth.
+- Only connected friendly objectives are eligible forward respawn points, and connection influences recall casting time.
+- Jungle paths remain neutral to supply-corridor movement modifiers.
+- Additional headquarters defense or resupply benefits are optional proposals, not established requirements.
 
 **Fairness constraints:** Apply the same topology and rules to both factions, whether controlled by AI or humans. Clearly visualize frontlines, connected points, and the reason for any penalty. Avoid an automatic win condition triggered only by capturing a particular path; a difficult direct headquarters assault should still be technically possible.
 
@@ -54,7 +54,7 @@ Possible effects to evaluate:
 
 ## Economy
 
-Currency is held across rounds **without a carryover cap** under the current proposal. Each round grants base income; outcome-based income, losing-streak support, neutral-enemy rewards, and objective income are candidate sources. Players should be able to transfer resources or contribute to a team pool so one carry can receive concentrated investment.
+Currency is owned individually and carried across rounds **without a carryover cap** under the current proposal. Players earn currency during rounds from holding objectives, eliminations, and farming; score-based awards are paid after rounds. Players can transfer funds during preparation to support a selected carry. A single team-wide injection occurs at 0–2 round losses, not after every lost round.
 
 There are two distinct uses of currency:
 
@@ -91,7 +91,7 @@ The AI must use the same resource, capture, skill, and combat systems as humans.
 - Tie/overtime rules and whether contested devices affect end-of-round ownership.
 - Specific income amounts, equipment prices, respawn curve, and interest rate/cap.
 - Character roster, upgrades, cooldowns, and exact roster and class-specific abilities (the default prohibits duplicate characters on the same team; custom rooms can allow them).
-- Item persistence on death, dropped equipment, team-pool and transfer permissions.
+- Persistence and dropping rules for ordinary purchased equipment (demolition devices explicitly drop); details of currency transfer UI.
 - The point at which upgrade holding time starts and the handling of partial upgrades or transaction cancellation.
 - Matchmaking, session settings, AI difficulty, spectators, and disconnection rules.
 

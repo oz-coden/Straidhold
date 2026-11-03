@@ -1,42 +1,44 @@
-# Roadmap
+# 開発ロードマップ
 
-> **Status:** Proposed milestones; no implementation is claimed.
+> **状態：** 計画案。以下の項目を実装済みとみなさない。
 
-## Phase 0 — Rules and executable model
+## フェーズ0 — ルールと実行可能なモデル
 
-- Record game invariants and resolve ambiguous edge cases, especially round ties, early headquarters wins, upgrade accounting, refunds, and resets.
-- Build a small map with control points, headquarters, and a five-minute timer.
-- Implement command-driven teams and a headless round-state machine.
-- Add unit and property-based tests for the economy, score, and round transitions.
+- ラウンド同点時の処理、本部爆破による即時勝利、強化への投資と返金、ラウンドリセットなど、重要な不変条件と境界事例を確定する。
+- 本部と占領拠点、5分タイマーを備える小規模なマップを用意する。
+- コマンド駆動のチーム処理と、描画不要で動作するラウンド状態機械を実装する。
+- 資金・スコア・ラウンド遷移について単体テストと性質ベースのテストを追加する。
 
-## Phase 1 — Playable single-client prototype
+## フェーズ1 — 遊べる単一クライアントの試作
 
-- Implement moving, attacking, respawning, farming, and capture device placement/defense.
-- Add a small character roster with shared core actions and distinct skills.
-- Add preparation, purchases, refundable upgrades, a small character-switch fee, and simple-interest calculation.
-- Create readable HUD, default/recommended builds, and minimal input/UI documentation.
-- Validate a complete first-to-three match with AI participants.
+- **5対5（人間1人＋AI9人など）**を初期試作の規模として検証する。AIの判断はStraidhold側で実装し、操作命令は共通化する。
+- 移動、通常攻撃、復活、ファーミング、占領装置の設置・防衛を実装する。
+- 少数のキャラクターと、それぞれの固有スキルを用意する。
+- 準備フェーズ、購入、返金可能な強化、小額のキャラクター変更手数料、単利の計算を実装する。
+- HUD、おすすめビルド、基本的な入力操作・UI説明を用意する。
+- キーボードとゲームパッドに加えて、**左移動スティック＋右攻撃・スキルボタンのタッチ操作**を試作する。スキルごとに即時・方向・地点・対象指定を切り替え、通常攻撃とスキルの同時入力を試す。
+- AI参加者を含む3ラウンド先取の試合を最初から最後まで通して検証する。
 
-## Phase 2 — AI and automated balancing
+## フェーズ2 — AIと自動バランス調整
 
-- Add multiple strategic AI profiles and AI teammates, constrained to real game mechanics.
-- Support reproducible seeds, event logs, and match summaries.
-- Run many headless simulated matches; track win rates, income, snowballing, duration, and strategy viability.
-- Tune costs, interest, respawns, and objective balance; review human playability alongside bot metrics.
+- 攻撃、防衛、ファーミングなど複数の戦略を使うAIとAI味方を追加する。AIにも人間と同じルール・資源制約を適用する。
+- 再現可能な乱数シード、イベントログ、試合の要約を用意する。
+- ヘッドレスな試合を多数実行し、勝率、資金、雪だるま式の優位、試合時間、戦略の有効性を計測する。
+- コスト、投資利率、復活、占領、ターゲット選択を調整する。人間による操作性の確認も並行する。
 
-## Phase 3 — Networking foundation
+## フェーズ3 — ネットワーク基盤
 
-- Extract reusable, transport-neutral networking/synchronization pieces into Simpludify when appropriate.
-- Implement an authoritative local server and remote input/snapshot flow.
-- Add human co-op, reconnection policy, latency evaluation, and security checks.
-- Keep PvE/PvP differences in lobby and participant control, not duplicated rule engines.
+- 再利用できる汎用的な通信・同期機能が見つかった場合に限り、Simpludifyへの切り出しを検討する。
+- 権威を持つローカルサーバーと、遠隔入力・スナップショット通信を実装する。
+- 人間同士の協力プレイ、再接続方針、遅延評価、セキュリティ検証を追加する。
+- PvE/PvPの違いはロビーや参加者の操作元で扱い、ゲームルールを複製しない。
 
-## Phase 4 — Public playable build
+## フェーズ4 — 公開プレイ可能版
 
-- Publish a testable web build (GitHub Pages can host browser client assets but not an authoritative server).
-- Document deployment and runtime requirements.
-- Use feedback and measured results to decide the next features.
+- テスト可能なWeb版を公開する。GitHub Pagesはブラウザ用の静的ファイルを配信できるが、権威サーバーはホストできない。
+- デプロイ方法と実行環境の要件を文書化する。
+- フィードバックと計測結果から、次の開発項目を決める。
 
-## Documentation maintenance
+## 仕様書の管理方針
 
-Treat this repository as the durable source of truth for decided rules and current proposals. When decisions change, revise the relevant sections, mark unresolved issues explicitly, and avoid presenting proposals as completed software.
+リポジトリを、合意済みのルールと現時点の案の継続的な記録として使う。方針を変更した場合は該当箇所を更新し、未決定事項を明示する。設計案を実装済みの機能として記載しない。

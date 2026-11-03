@@ -1,31 +1,32 @@
 # Straidhold
 
-Straidhold is a planned 5v5 top-down tactical action game built with [Simpludify](https://github.com/oz-coden/Simpludify). It combines cooperative PvE, future PvP, territory control, round-based competition, character abilities, and an economy that rewards both tactical planning and casual play.
+Straidholdは、[Simpludify](https://github.com/oz-coden/Simpludify)を使って制作する予定の、見下ろし型5対5タクティカルアクションゲーム。協力PvEを中心に、将来のPvP、拠点占領、ラウンド制の対戦、キャラクター固有能力、戦術と気軽なプレイの両立を目指す。
 
-**Status:** Concept / pre-prototype. Gameplay numbers and systems below are proposals, not implemented features.
+**状態：企画・試作前。** 以下の数値と仕組みは設計案であり、実装済みの機能を示すものではない。
 
-## Game concept
+## ゲームの概要
 
-Players compete against an opposing team to capture objectives and attack the opposing headquarters. Neutral enemies and objectives provide farming opportunities. The default experience targets friendly, low-pressure cooperative play, while leaving room for team composition, resource allocation, economic rounds, and coordinated tactics.
+プレイヤーは敵チームと拠点を奪い合い、必要に応じて敵本部への攻撃も狙う。中立モンスターや中立目標から資金を獲得できる。複雑な戦術を覚えなくても協力プレイを楽しめる一方、編成、資金配分、ラウンド間の投資判断、連携によって戦略を深められる。
 
-- **Teams:** 5 vs 5; human players, AI-controlled participants, or mixtures of both are intended.
-- **Match:** First team to win three rounds wins the match.
-- **Round:** A proposed five-minute combat phase, with a one-minute preparation phase between rounds.
-- **Round victory:** Finish the round with more team score (primarily earned by holding objectives), or win immediately by detonating a planted device at the opposing headquarters.
-- **Capture:** Deploy a capture device at an objective and defend it until activation completes.
-- **Respawns:** Short early in each round (around two seconds), increasing to around ten seconds during the final minute.
-- **Progression:** Currency carries over completely; map ownership and deployed structures reset between rounds.
-- **Characters:** Five provisional classes (Assassin, Tank, Recon, Control, Support), each with one class passive and one class active, plus three upgradable character-specific abilities. Each character has at most four active skills. Character selection and builds can change during preparation.
-- **Survival:** Regenerating shields protect non-regenerating flesh HP; support barriers, healing, and defensive abilities shape engagements.
-- **Battlefield:** Headquarters-connected supply corridors affect movement and forward respawns; jungle provides flanking and concealed approaches.
-- **Economy and endgame:** Individual income from holding objectives, combat, and farming; shared capture-device inventory, a unique demolition device per team, and a contested boss spawning with two minutes left.
+- **チーム：** 5対5。人間、AI操作の参加者、その混合に対応する構想。
+- **試合：** 3ラウンド先取。
+- **ラウンド：** 戦闘5分、ラウンド間の準備1分を初期案とする。
+- **勝利条件：** 制限時間終了時のチームスコア優勢、または敵本部に設置した爆破装置の起爆による即時勝利。
+- **占領：** 拠点に占領装置を設置し、起動完了まで防衛する。
+- **復活：** ラウンド序盤は約2秒、最終1分では約10秒まで延長する想定。
+- **引き継ぎ：** 未使用資金は全額持ち越す。拠点の占領状態や設置設備はラウンドごとにリセット。
+- **キャラクター：** アサシン、タンク、リコン、コントロール、サポートの5クラス案。クラス共通のパッシブ1・アクティブ1と、強化可能なキャラクター固有能力3つを組み合わせる。アクティブスキルは最大4つ。
+- **耐久：** 自動回復する通常シールドと、自然回復しない本体HPを持つ。
+- **戦場：** 補給線で移動や前線復活が変化し、ジャングルから迂回できる。
+- **経済・終盤：** 拠点維持、戦闘、ファーミングによる個人資金。共有の占領装置、各チーム1個の本部爆破装置、残り2分で出現する中立ボス。
+- **操作：** PC・ゲームパッド・スマホを想定。スマホは左仮想スティックで移動し、右側の通常攻撃・スキルボタンをタップまたはドラッグして操作する案。通常攻撃はおおまかな方向から単体対象を選択する。攻撃継続モードなどは選択可能とする構想。
 
-The game should remain playable without detailed planning: clear HUD information, recommended builds, presets, and sensible defaults support casual play. More involved tactics should reward players who want them, without being mandatory.
+初心者向けには、見やすいHUD、おすすめビルド、プリセット、扱いやすい初期設定を用意する。戦術的な工夫を楽しめる一方、細かい最適化を強制しない。
 
-## Documentation
+## 仕様書
 
-- [Game design](docs/game-design.md) — detailed rules, economy, characters, and open decisions.
-- [Networking and simulation](docs/networking.md) — PvE/PvP architecture and reusable Simpludify capabilities.
-- [Roadmap](docs/roadmap.md) — phased implementation, automated testing, and validation.
+- [ゲームデザイン](docs/game-design.md) — ルール、経済、キャラクター、戦闘、スマホ操作、未決定事項
+- [ネットワークとシミュレーション](docs/networking.md) — PvE/PvPの構成方針とSimpludifyとの責務分担
+- [開発ロードマップ](docs/roadmap.md) — 段階的な実装、テスト、検証の計画
 
-This repository records design proposals and subsequent decisions. Values and unimplemented features should not be presented as finalized or available.
+これらは設計案と決定事項を記録する文書。未決定の数値や未実装の機能を、完成済みの仕様として扱わない。

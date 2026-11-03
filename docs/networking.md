@@ -1,38 +1,44 @@
-# Networking and Simulation
+# ネットワークとシミュレーション
 
-> **Status:** Architectural proposal, not an assertion that these APIs already exist in Simpludify.
+> **状態：** アーキテクチャの構想。ここに記載する機能がSimpludifyに実装済みであることを意味しない。
 
-Straidhold is planned to support co-op PvE and eventual PvP, with up to ten human/AI-controlled participant slots. This makes it a useful proving ground for reusable multiplayer functionality in [Simpludify](https://github.com/oz-coden/Simpludify).
+Straidholdは、協力PvEを中心に将来的なPvPも想定し、人間とAIを合わせて最大10人の参加枠を扱う。これにより、[Simpludify](https://github.com/oz-coden/Simpludify)に汎用的なマルチプレイヤー支援を追加する必要があるか検証できる。
 
-## Separation of responsibilities
+## 責務の分離
 
-**Straidhold owns** rules: rounds, factions, resources, upgrades, objectives, capture devices, combat, victory evaluation, character data, and AI decisions.
+**Straidhold側の責務：** ラウンド、陣営、資金、強化、拠点、占領装置、戦闘、勝敗判定、キャラクターデータ、AIの意思決定。
 
-**Simpludify could provide** generic facilities: deterministic/fixed-step simulation helpers, serializable input commands and snapshots, transport-agnostic synchronization, connection lifecycle abstractions, and headless execution. Introduce generic features only after identifying a reusable need; keep game-specific policy outside the engine.
+**Simpludify側で将来提供し得る汎用機能：** 決定論的な固定ステップのシミュレーション補助、シリアライズ可能な入力コマンドとスナップショット、通信方式に依存しない同期、接続ライフサイクル、ヘッドレス実行。再利用可能な要件が明確になってから追加し、ゲーム固有の判断はエンジンに含めない。
 
-**Transport adapters own** actual communication, e.g. WebSocket for browsers. Transport protocols and deployment environments should not leak into game-rule logic.
+**通信アダプターの責務：** ブラウザ向けWebSocketなどの実通信。通信プロトコルやデプロイ環境の都合を、ゲームルールへ直接持ち込まない。
 
-## Authority model
+## 権威モデル
 
-Prefer server-authoritative simulation for online matches:
+オンライン戦では、サーバー権威型のシミュレーションを基本候補とする。
 
-1. A human input adapter or AI policy produces a command.
-2. The authority validates and applies commands to the simulation.
-3. The simulation determines collisions, combat outcomes, funds, upgrades, capture state, and wins.
-4. Clients receive state updates and render them, with prediction/interpolation only where justified.
+1. 人間用入力アダプターまたはゲーム固有のAIが操作コマンドを生成する。
+2. 権威を持つシミュレーションがコマンドを検証して適用する。
+3. 衝突、ダメージ、購入、収入、強化、占領、勝敗をシミュレーションが確定する。
+4. クライアントは状態更新を受信して描画する。予測や補間は必要性を確認してから導入する。
 
-A client must not directly declare damage, purchases, income, or captured points. A local/headless session should call the same rule APIs without any network dependency.
+クライアントがダメージ、購入、収入、拠点占領を一方的に確定させてはならない。ローカル・ヘッドレスの試合も、ネットワークに依存せず同じルールAPIを利用する。
 
-## Candidate milestones
+## 入力の統一と操作の引き継ぎ
 
-1. Pure headless local simulation and testable AI command adapters.
-2. Stable command and snapshot schemas; record/replay and deterministic seeds.
-3. Local host + one remote client using a minimal transport.
-4. Multiple clients, reconnection, lag handling, and authority checks.
-5. Performance measurements, bot-filled matches, and PvP-specific validation.
+人間のキーボード・ゲームパッド・タッチ操作と、Straidhold側で定義するAI操作は、可能な限り共通の操作命令として扱う。ネットワーク受信入力も同じ境界へ接続できる構成を目指す。ただし**ネットワーク通信やAI意思決定をSimpludifyの既存機能だと仮定しない**。
 
-## Test strategy
+接続切断時にAI代行・待機・試合中断のどれを選ぶかはゲームやルーム設定の責務とし、自動的なAIへの切り替えをエンジンに要求しない。操作元を変更しても、操作対象の位置・HP・所持品などの状態を維持する。
 
-Headless simulations should cover rule invariants (currency never unintentionally duplicates, one win is awarded per round, resets clear transient structures, valid upgrades refund correctly), randomized action sequences, and seeded repeatability. Aggregate thousands of AI-vs-AI games once runtime permits, comparing compositions, resource distributions, eco strategies, round length, and side advantage.
+## 開発段階の候補
 
-AI-vs-AI results are a screening tool, not a substitute for human testing: coordinated humans may find tactics that bots cannot.
+1. コマンド駆動のヘッドレスなローカルシミュレーションとテスト可能なAI入力。
+2. 安定したコマンド・スナップショット形式、イベント記録・再生、決定論的シード。
+3. ローカルホストと遠隔クライアント1台による最小限の通信。
+4. 複数クライアント、再接続、遅延対策、権威側の検証。
+5. 性能計測、AI補充のある試合、PvPに特有の検証。
+
+## テスト方針
+
+ヘッドレスなシミュレーションで、資金の不正な増殖防止、ラウンド勝者の一意性、一時設備のリセット、強化投資の正確な返金などの不変条件を確認する。乱数を固定した入力系列の再現性やランダムな操作系列も検証する。
+
+十分な実行性能が得られたら、AI同士の試合を数千回規模で計測し、編成別勝率、資金配分、節約戦略、所要時間、陣営の有利不利を比較する。AI同士の結果は問題発見のための指標であり、人間によるプレイテストの代わりにはならない。

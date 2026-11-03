@@ -1,247 +1,312 @@
-# Game Design
+# ゲームデザイン
 
-> **Status:** Working design notes. This document distinguishes agreed direction from illustrative values and unresolved questions.
+> **状態：** 検討中の設計資料。合意済みの方向性、調整用の仮数値、未決定事項を区別する。記載された内容は実装済みを意味しない。
 
-## Vision and principles
+## ビジョンと基本方針
 
-Straidhold is a top-down 5v5 tactical action game inspired by MOBA farming and progression and tactical shooters' round economy and character abilities. Its primary target is cooperative PvE, with PvP and mixed human/AI teams supported by the same underlying rules.
+Straidholdは、MOBAのファーミング・成長要素と、タクティカルシューターのラウンド経済・キャラクター能力を組み合わせた、見下ろし型5対5のタクティカルアクションゲーム。主な対象は協力PvEだが、PvPと人間・AI混成チームも同じルールで扱えるようにする。
 
-- **Approachable without optimization:** Players can pick a favorite character, accept a recommended build, farm, fight, and capture objectives without complex planning.
-- **Depth without compulsion:** Team strategies include saving currency, concentrating spending on a carry, spreading spending across five players, attacking headquarters, and controlling multiple objectives.
-- **Recovery after mistakes:** An individual death or lost round is not an instant match loss; respawn time grows as a round approaches its conclusion.
-- **Symmetric core rules:** AI and humans use the same action and economy constraints. Difficulty may change decision quality, not silently grant unlimited resources.
-- **Transparent information:** Show score, remaining time, point ownership, capture progress, funds, status effects, and ability cooldowns. Details can live in an expandable view.
+- **細かな最適化なしでも遊べる：** 好きなキャラクターを選び、おすすめビルドでファーミング、戦闘、拠点占領を楽しめる。
+- **戦略の深さを強制しない：** 資金の貯蓄、特定の味方への投資集中、5人への分散投資、本部への奇襲、複数拠点の維持などを選べる。
+- **失敗から立て直せる：** 個人の死亡やラウンドの敗北で試合が即終了しない。復活時間はラウンド終盤ほど延びる。
+- **人間とAIに対称なルール：** AIも同じ行動・経済的制約に従う。難易度調整で判断品質は変えても、資金を無制限に与えない。
+- **必要な情報を明示：** スコア、残り時間、拠点所有権、占領進捗、所持金、状態異常、スキルのクールダウンをHUDなどで確認できる。詳細情報は展開式でもよい。
 
-## Match and round structure
+## 試合とラウンドの構成
 
-| Parameter | Current direction |
+| 項目 | 現時点の方針 |
 | --- | --- |
-| Team size | 5 vs 5 (up to 10 participants; AI can fill slots) |
-| Match result | First to 3 round victories |
-| Combat phase | 5 minutes (proposed initial tuning value) |
-| Preparation phase | 1 minute between rounds; initial preparation timing TBD |
-| End-of-timer victory | Higher team score at timeout (objective holding is the primary score source) |
-| Early round win | Successfully detonate a headquarters demolition device (knockout) |
-| Respawn | Roughly 2 seconds at round start, increasing to 10 seconds in final minute (curve TBD) |
-| Round reset | Capture ownership, placed devices, temporary buildings, and battlefield entities |
-| Round persistence | Full unspent currency, selected persistent upgrades, and match-level progress |
+| チーム人数 | 5対5（参加枠は最大10人。AIで補充可能） |
+| 試合の勝利 | 3ラウンド先取 |
+| 戦闘フェーズ | 5分（初期の調整案） |
+| 準備フェーズ | ラウンド間に1分。初回準備時間は未定 |
+| 時間切れ時 | チームスコアが高い側の勝利。主な得点源は拠点維持 |
+| 即時勝利 | 敵本部の爆破装置を起爆してノックアウト |
+| 復活 | ラウンド序盤は約2秒、最後の1分では約10秒（変化曲線は未定） |
+| ラウンドごとにリセット | 拠点の占領状態、設置装置、仮設建造物、戦場の一時オブジェクト |
+| ラウンド間で引き継ぐ | 未使用資金の全額、持続的な強化投資、試合単位の進行 |
 
-With full-length rounds, matches take approximately 17 minutes (3–0) to 29 minutes (3–2), excluding initial setup and loading. Headquarters destruction may shorten rounds.
+フルタイムで進行する場合、初期セットアップとロードを除く試合時間は3–0で約17分、3–2で約29分。本部破壊で短縮できる。
 
-**Unresolved:** Define a deterministic tiebreaker/overtime policy for equal scores at timeout. A headquarters being destroyed awards the round, not the whole match.
+**未決定：** 時間切れ時に同点だった場合の決定論的なタイブレーク／延長戦。本部破壊はラウンド勝利を与えるが、試合全体の即時勝利ではない。
 
-## Capture and battlefield
+## 拠点占領と戦場
 
-Every character can move, attack, farm, use items, deploy a capture device, and contest objectives. To take an objective, install a device and defend it for a required activation period. Opponents can disrupt or remove the device under rules still to be defined. AI uses the same process.
+どのキャラクターも移動、通常攻撃、ファーミング、アイテム使用、占領装置の設置、拠点争奪が可能。拠点を奪取するには装置を設置し、起動が終わるまで守る。敵が装置を妨害・撤去する条件は今後決める。AIにも同じ手順を適用する。
 
-Controlling points may generate resources, create favorable positioning, or improve access to neutral enemies. Headquarters are separate targets, enabling a direct attack as an alternate victory route. A five-point map and a ~30-second activation timer are initial examples, not fixed requirements.
+拠点の保持は資金、位置取り、中立モンスターへのアクセスなどの利益を生む。本部は通常の占領拠点と別に存在し、直接攻撃による勝利も選べる。占領拠点5個、起動約30秒は初期案であり固定ではない。
 
-## Frontline pressure and headquarters protection
+## 前線の圧力と本部防衛
 
-**Design direction:** Going directly to the enemy headquarters before taking territory should be possible, but generally risky and inefficient. Do not make capture points hard gates or disallow flanking routes: concentrated investment in an assault character and a coordinated headquarters rush must remain viable as high-risk strategies.
+**設計方針：** 拠点を取らずに敵本部へ直行することは可能だが、基本的には危険で効率が悪い状態にする。拠点を絶対的な通行条件にせず、迂回路を残す。強襲キャラクターへの投資集中や連携による本部ラッシュは、高リスクな戦術として成立させる。
 
-Use a **supply-line / territorial support** model. The map may define adjacency between controlled points and staging areas. Connected friendly territory allows safer resupply, repairs, temporary deployment, and more favorable access to the enemy base. When a team bypasses unclaimed or enemy-held territory, disadvantages increase with the depth of unsupported penetration.
+**補給線／領域支援モデル**を採用する。マップ上の拠点・中継地点の接続関係を定義し、本部とつながった味方領域では補給・修理・仮設設備・前線移動が有利になる。未占領・敵占領の領域を飛び越えた奥深い侵入ほど不利になる。
 
-Established mechanical direction (specified more precisely below):
-- Friendly connected corridors speed movement; enemy corridors slow movement according to frontline invasion depth.
-- Only connected friendly objectives are eligible forward respawn points, and connection influences recall casting time.
-- Jungle paths remain neutral to supply-corridor movement modifiers.
-- Additional headquarters defense or resupply benefits are optional proposals, not established requirements.
+- 自軍の接続済み通路では移動速度が上がり、敵軍の接続済み通路では侵入深度に応じて減速する。
+- 前線復活は本部に接続した味方拠点に限る。接続は帰還テレポートの詠唱時間にも影響する。
+- ジャングルには補給線由来の加速・減速を適用しない。
+- 本部防御力の増加や追加の補給効果は未採用の候補。
 
-**Fairness constraints:** Apply the same topology and rules to both factions, whether controlled by AI or humans. Clearly visualize frontlines, connected points, and the reason for any penalty. Avoid an automatic win condition triggered only by capturing a particular path; a difficult direct headquarters assault should still be technically possible.
+**公平性：** 人間・AIに関係なく両陣営へ同じマップ構造・ルールを適用し、前線、接続拠点、速度ペナルティの理由を見えるようにする。特定の拠点を占領しただけで自動勝利する仕組みにはしない。
 
-**Open tuning:** Supply effects' magnitudes and timing, route/map tuning, and headquarters defensive strength. The graph-connected ownership and frontline-based depth rules are described below. Test direct rush vs. staged capture vs. diversionary assault with headless simulations and human playtests.
+**調整事項：** 補給線効果の強さと時間、マップ・経路、本部防衛力。正面突撃、段階的な拠点占領、陽動をヘッドレスシミュレーションと人間のプレイで比較する。
 
-## Economy
+## 経済
 
-Currency is owned individually and carried across rounds **without a carryover cap** under the current proposal. Players earn currency during rounds from holding objectives, eliminations, and farming; score-based awards are paid after rounds. Players can transfer funds during preparation to support a selected carry. A single team-wide injection occurs at 0–2 round losses, not after every lost round.
+資金はプレイヤー個人が所有し、現案では**持ち越し上限なし**でラウンド間に引き継ぐ。戦闘中は拠点維持、撃破、ファーミングで獲得し、ラウンド終了時にはスコアに応じて報酬が支払われる。準備時間には味方へ送金して主力キャラクターを支援できる。ラウンド敗戦による救済資金は毎回ではなく、0–2になったときのチーム全体への一度限りの支給とする。
 
-There are two distinct uses of currency:
+資金の使い道は大きく2種類。
 
-1. **Recoverable skill-upgrade allocation.** Characters have around three usable baseline abilities (passive and/or active). Upgrading a skill allocates funds that can later be fully recovered. Each upgrade is managed separately. Skill upgrades can be downgraded or refunded only during preparation. If a character is switched, their character-specific upgrades are refunded.
-2. **Consumptive purchases.** Equipment, consumables, and placeable structures cost currency permanently. Structures count as consumables: they are deployed in the current round and reset with the battlefield. Purchased equipment is currently intended to be per-round rather than refunded.
+1. **返金可能なスキル強化への投資：** キャラクターはパッシブ／アクティブを含む約3つの固有能力を最初から使える。強化に充てた資金は後で全額回収でき、能力ごとに独立して管理する。強化の取り下げ・返金は準備中のみ。キャラクター変更時には旧キャラクター固有の強化を返金する。
+2. **消費型の購入：** 装備、消耗品、設置設備は支払い時点で資金を消費する。設備も消耗品で、そのラウンド中に設置され、ラウンド終了で消える。装備も基本的にはラウンドごとに購入し、返金しない予定。
 
-### Upgrade investment / simple interest
+### 強化投資と単利
 
-An upgrade held across completed rounds accrues a **simple-interest** refund bonus against its original invested principal, not compounded returns:
+複数ラウンドにわたり維持した強化は、投資元本に対する**単利**による返金ボーナスを得る。複利ではない。
 
-`refund = invested_principal × (1 + rate_per_round × eligible_completed_rounds)`
+`返金額 = 投資元本 × (1 + ラウンド当たり利率 × 対象となる完了ラウンド数)`
 
-The bonus becomes spendable **only when that upgrade is refunded**, rather than being paid each round. Refunds are managed separately per upgrade. An illustrative rate is 5% per eligible round, subject to balancing. The treatment of additional upgrade levels purchased later, rounding, and the exact accrual boundary remain to be specified; preserving independent purchase lots is one candidate.
+ボーナスを使用できるのは**その強化を返金したときだけ**。毎ラウンド自動配布しない。強化ごとに独立して計算する。利率は1ラウンド当たり5%を仮の例とする。途中で追加強化した分、端数処理、利息計算の開始・終了境界は未決定。追加購入分を独立した投資ロットとして扱う案がある。
 
-A character change during preparation incurs a **small flat fee**, ideally comparable to the interest from maintaining a typical skill upgrade for one round. It discourages constant switching without blocking strategic adjustments. Character selection changes within the preparation UI should be previewable without repeated fees; apply the fee only on final confirmation.
+準備中のキャラクター変更には**少額の定額手数料**を課す。典型的な強化を1ラウンド保有した際の利息程度が目安。頻繁な切り替えを抑えつつ戦略変更は妨げない。UI上での試着・プレビューでは徴収せず、最終確定時にのみ課す。
 
-The economy should support an intentional **eco round**: avoid spending on per-round gear or devices, rely on baseline skills, save funds, and invest more later. Avoid automatic mandatory income-multiplier upgrades. Economic advantage should usually emerge from practical character abilities, farming, map control, or coordinated play.
+装備・装置を節約し、初期スキルで戦い、次ラウンドへ資金を貯める**エコラウンド**を戦術として成立させる。必須の収入倍率アップグレードは導入しない。経済優位はキャラクター能力、ファーミング、拠点維持、連携などから生み出す。
 
-**Balance questions:** Interest farming, repeated refund/reinvestment exploits, snowballing, resource transfers, and fully refundable upgrades must be tested. Avoid assuming results before simulation and playtesting.
+**調整事項：** 利息稼ぎ、返金と再投資の悪用、優勢側の雪だるま式拡大、送金、全額返金可能な強化。シミュレーション・プレイテスト前に安全だと決めつけない。
 
-## Characters and builds
+## キャラクターとビルド
 
-Each character belongs to one of five classes and has three unique abilities available from the outset; upgrades improve them rather than unlock baseline access. Class abilities are separate and cannot be upgraded. Possible roles include frontline defense, assault, healing/support, scouting/flanking, and engineering/utility. These are **strengths, not exclusive permissions**: all characters retain the same core actions.
+各キャラクターは5クラスのいずれかに属し、最初から3つの固有能力を使用できる。強化は能力を解放するものではなく、性能を上げるもの。クラス共通能力は別枠で、強化不可。前衛防衛、突撃、回復支援、偵察・側面攻撃、工兵・妨害などが得意分野となるが、**クラス固有の専用許可ではない**。基本行動は全キャラクター共通。
 
-Character switching happens in preparation, with a modest fee and automatic refund of old character-specific upgrades. Other purchases, presets, and upgrade allocations can also be edited during preparation. The player's unchanged prior setup remains a valid default. Recommended builds should include balanced, offensive, defensive, and economy-saving options.
+キャラクター変更は準備中のみ行い、少額の手数料を払い、旧キャラクター固有の強化は自動返金する。その他の購入・プリセット・強化配分も準備中に調整できる。前回の設定を変更せずに使うことも有効な標準動作。おすすめビルドにはバランス型、攻撃型、防御型、節約型を用意する。
 
-## AI and PvP
+## AIとPvP
 
-The AI must use the same resource, capture, skill, and combat systems as humans. Its strategy can include assaults, defense, farming, and diversion, constrained by its budget. The rules must not assume one side is always AI: human-vs-AI, human-vs-human, and mixed rosters should remain possible.
+AIも人間と同じ資金、占領、スキル、戦闘システムを使用する。予算制約の中で突撃、防衛、ファーミング、陽動などを判断する。片方が常にAIであることを前提とせず、人間対AI、人間対人間、混合編成を同じルールで扱う。
 
-## Outstanding decisions
+## 現時点の未決定事項
 
-- Exact map topology, number and placement of points, capture-device arming/counterplay, headquarters defenses, and supply-line connectivity/pressure tuning.
-- Tie/overtime rules and whether contested devices affect end-of-round ownership.
-- Specific income amounts, equipment prices, respawn curve, and interest rate/cap.
-- Character roster, upgrades, cooldowns, and exact roster and class-specific abilities (the default prohibits duplicate characters on the same team; custom rooms can allow them).
-- Persistence and dropping rules for ordinary purchased equipment (demolition devices explicitly drop); details of currency transfer UI.
-- The point at which upgrade holding time starts and the handling of partial upgrades or transaction cancellation.
-- Matchmaking, session settings, AI difficulty, spectators, and disconnection rules.
+- 正確な地形構造、拠点数・配置、占領装置の起動・妨害・解除条件、本部防御、補給線接続と効果量。
+- 同点・延長戦、時間切れ時の占領装置の扱い。
+- 具体的な収入、装備価格、復活時間の変化曲線、投資利率・上限。
+- キャラクター編成、強化、クールダウン、各能力の数値。標準ルールでは同じチーム内の同一キャラクター重複を禁止し、カスタムルームでは許容可能にする案。
+- 通常装備の持ち越し・落下条件（本部爆破装置の落下は決定方針）、送金UI。
+- 投資保有期間の開始点、部分強化、取引キャンセルの扱い。
+- マッチング、セッション設定、AI難易度、観戦者、通信切断時の方針。
+- タッチ操作時の画面配置、照準補助の強さ、通常攻撃自動化の公平性。
 
+## スコア、ノックアウト、ラウンド終了時の経済
 
-## Scoring, knockout, and end-of-round economy
+**現時点の方針：** 主な勝利条件は5分終了時の**チームスコア優勢**であり、単純な拠点過半数ではない。占領拠点を維持すると大量の**チームスコア**が継続的に増え、同時にチーム全員へ定期的な**個人資金**が配られる。占領完了自体の一時的な加点は比較的小さくする。敵プレイヤーや中立モンスターの撃破でもスコア・個人資金を得るが、拠点維持を主な得点戦略にする。金額、貢献者判定、加点頻度は調整対象。
 
-**Current design direction:** The primary round win condition is the **higher team score when five minutes expire**, not possession of a majority of objectives. Holding owned objectives continually earns substantial **team score** and distributes recurring **personal currency to each teammate**. Completing a capture awards only a comparatively small one-off score bonus. Eliminating opposing players and neutral enemies also earns score and personal currency, but objective retention should remain the principal scoring strategy. Scoring amounts, credit attribution, and rates are balance parameters.
+チームの爆破装置が敵本部で起爆すると、スコアに関係なく**ノックアウトでそのラウンドに即勝利**する。ラウンド終了時の個人報酬はチームの累積スコアに比例させ、ノックアウト側には別途ボーナスを付与する。得点で優勢だったチームが爆破で負けても、獲得スコア相応の経済報酬は残る。ラウンド勝利とスコア報酬を分離する。
 
-A team wins the round **immediately by knockout** if its headquarters demolition device detonates at the enemy headquarters, irrespective of the team scores. At round end, each player's currency award is based on their team's accumulated score, plus a separate knockout bonus for the knockout team where applicable. Thus a high-scoring team knocked out by an opponent retains a proportionate economic reward for its objective play; the knockout side earns its own score-derived income plus knockout bonus. Round wins are separate from score-based payouts.
+資金は**個人所有**。戦闘中、共有占領装置の補充を含めて支払いは購入した本人の資金からのみ行い、味方に自動請求しない。準備中は送金と購入・強化の振り直しが可能。ファーミング担当が装置を補充し、突撃役が戦闘装備へ投資する編成も成立する。勝敗だけで均等な収入になる必要はなく、優れたプレイによる優位は残す。**0–2の時点**でのみ、チームへ一度限りの逆転支援資金を支給する。初回の敗北ごとの補助や3敗後の支給は行わない。額は未定。
 
-Currency belongs to **individual players**. During combat, individuals spend their own funds, including on replenishing shared capture-device stocks; no teammate is charged automatically. During preparation, teammates may transfer currency and redistribute purchases and upgrade investments. A farming-oriented player can fund shared capture devices while an assault-oriented teammate invests in their own combat gear. Winning and losing should not automatically produce equal income: advantage earned by superior play is intentional. A **single comeback cash injection** is granted when a team falls behind **0–2 in rounds**, before its potential final round; no routine first-loss compensation or third-loss payout. Exact injection size is TBD.
+### 終盤の中立ボス
 
-### Endgame neutral boss
+残り**2分**で強力な中立ボスが出現する予定。HPは攻撃人数に比例して変動させず**固定・共有**とする。同一DPSで中断なく攻撃できた場合、5人なら約**30秒**、10人なら約**15秒**で倒せる目安。戦闘中の妨害や対人戦闘で討伐時間は延び得る。**最後にダメージを与えて倒したチーム**がボスバフを獲得し、その効果は**ラウンド終了まで**持続する。ボス討伐にはスコア・資金報酬もある。バフ内容・数値は未決定。ラストヒットの奪い合いも意図した要素とする。
 
-A strong neutral boss appears with **two minutes remaining** (initial intended timing). Its health is **shared**, not scaled to the number of attacking players: assuming equal uninterrupted DPS, five attackers defeat it in approximately **30 seconds**, ten attackers in approximately **15 seconds**. Opposition, interruption, and fighting each other may extend the encounter. The team that deals the **final damaging blow** receives the boss buff, lasting **until the round ends**, and boss combat also provides relevant score/currency rewards. The buff's effects and amounts are to be designed; the last-hit contest, including steals, is intentional.
+## 戦場構造、ジャングル、視界
 
-## Battlefield topology, jungle, and vision
+マップには**レーン／補給通路**と、障害物・迂回路・遮蔽を持つ**ジャングル**を設ける。ジャングルを歩くだけでは補給線由来の加速・減速を受けない。通常の視界は障害物による視線遮断を考慮し、**茂み・隠蔽領域**では探知条件を満たさない敵から存在を隠す。生存中の視界と死亡中の俯瞰マップで同じチーム視界モデルを使い、見えていない敵の生座標を漏らさない。
 
-The map distinguishes designated **lanes / supply corridors** from a **jungle** of obstacles, alternate approaches, and concealment areas. Jungle terrain grants **no supply-line speed acceleration or slowdown** merely by entering it. Base vision uses obstacle line-of-sight occlusion, with special **brush/concealment areas** that hide occupants unless revealed under the game's detection rules. The same team-visibility model supports the alive view and the zoomed-out death view; enemy movements hidden by fog must not be leaked as live coordinates.
+補給接続は**グラフ上の関係**。本部から連続して味方が所有する拠点を通る経路が必要。通路の両端と必須の中間拠点が味方所有かつ本部につながっているとき、そのチームの通路が有効になる。途中に中立／敵の拠点があれば、遠くの拠点だけ味方であっても通路は無効。通路は味方通電・敵通電・無効のいずれかであり、誰かが通っただけで所有が反転しない。孤立した味方拠点の所有権は残るが、補給上の特典は失う。
 
-Supply connection is a **graph property**: a path from the team's headquarters through consecutively **friendly-owned** connected objectives. A supply corridor is powered for a team only when the designated link's endpoints and required intervening objectives are friendly and headquarters-connected. A neutral/enemy intermediate objective makes the route unpowered, even if distant endpoints are friendly. A corridor is friendly-powered, enemy-powered, or unpowered, not instantaneously converted from enemy to friendly merely because someone walks through it. Isolated friendly points retain ownership but lose supplied privileges.
+**味方の有効な補給通路**では移動速度が上限まで徐々に上がる。通路を出た瞬間に加速効果は終了。通路内で被弾すると加速が途切れ、一定のクールダウン後に再加速できる。**敵の有効な補給通路**では減速する。推奨モデルは滞在時間でなく**侵入深度**に基づく減速で、敵の最前線の接続拠点から敵本部へ向かう補給線沿いの奥行きで測る。そのためジャングルから敵本部付近へ出た場合も、直ちに奥地相当の減速がかかる。敵通路を離れたあとは残留減速が徐々に消える。分岐路の距離測定と減速曲線は今後調整し、地図は不必要に複雑化しない。
 
-Inside a **friendly powered corridor**, speed ramps upward toward a cap. Leaving it ends acceleration immediately. Being damaged inside stops acceleration and imposes a cooldown before ramp-up can resume. In an **enemy powered corridor**, movement is slowed. The preferred model bases slowdown on **invasion depth**, measured along enemy-supplied routes from the enemy's frontmost connected point toward their headquarters, rather than time spent inside a corridor. Therefore a player emerging from jungle directly beside the enemy headquarters immediately suffers the appropriate deep-territory slowdown. Leaving an enemy corridor gradually clears the lingering slow. Exact graph distance/path treatment on branching maps and the slowdown curve remain tuning/design questions; maps are intended to avoid gratuitous complexity.
+### 復活と拠点妨害
 
-### Respawning and objective disruption
+復活地点は自軍本部、または**本部へ補給接続された味方所有拠点**から選べる。拠点の小さな**コア領域**内に敵が1人でもいる場合はその地点での復活を禁止する。より広い**警戒領域**は敵接近を通知するだけで、それ単体では復活を阻止しない。敵の**占領装置**が設置された拠点は、敵が近くにいなくても復活地点として使えなくなる。ただし装置の設置だけで所有権や補給接続は変化しない。奪取は装置の防衛・起動完了後。
 
-A player may respawn at their own headquarters or a **headquarters-connected friendly-owned objective** when it is eligible. An objective's smaller **core zone** blocks respawn while any enemy is inside; its larger **alert/perimeter zone** warns of enemies but does not itself block respawn. An opposing **capture device**, once deployed at a point, disables the point's respawn function even without an enemy standing there; it does **not** immediately transfer ownership or break supply-route ownership connectivity. Capture completes only after its defended activation process.
+復活地点の選択は**自動、手動、第一・第二希望**から選べる。実際の復活時に地点の有効性を再検証する。手動指定が無効になったら追加の復活待機時間を課さず通知して再選択させる。自動モードでは別の有効地点を選び直せる。復活時間は序盤約2秒から最終1分に約10秒へ延ばす予定で、変化曲線は未決定。死亡中は味方の視界情報だけを使った俯瞰の戦場マップを表示する。
 
-Respawn destination modes: **automatic**, **explicit/manual**, or **first and second preferences**. Recheck eligibility at actual respawn. If a manual selection becomes invalid, notify and request reselection without charging a fresh respawn delay; automatic mode may choose another eligible destination. The intended respawn timer rises from ~2 seconds early to ~10 seconds in the final minute; exact progression is TBD. Dead players see a zoomed-out fog-of-war map based on friendly intelligence.
+### 帰還テレポート
 
-### Recall teleport
+全キャラクターはクールダウン付きで**自軍本部への帰還テレポート**を詠唱できる。詠唱時間は、最も近い**本部と接続した味方所有拠点**（本部自身も含む）からの距離に応じて延びる。可能なら障害物を考慮した経路距離を使う。補給線が断たれると帰還に時間がかかる。特殊バリアで吸収された場合を含め、**被弾すると詠唱が中断**する。茂みで隠れながら詠唱することは可能。具体的な時間、クールダウン、中断時ペナルティは未定。
 
-Every character can channel a **return teleport to their own headquarters** with a cooldown. Channel duration increases with distance (ideally obstacle-aware route distance) from the **nearest headquarters-connected friendly-owned point**, including headquarters itself; severing supply can consequently increase return time. Taking damage, including through a protective barrier, **interrupts the channel**. Brush can conceal a character while they channel. Precise cast/cooldown values and cancellation penalty remain undecided.
+## 装置、配送、戦闘中の購入
 
-## Devices, delivery, and live purchasing
+**占領装置**は**チーム共有在庫**として管理し、毎ラウンド初期支給数まで補充する。どの味方も在庫を使って設置でき、追加購入時は購入者本人の資金で支払う。拠点への投資が必要になる一方、無謀な連続設置は資金負担を伴う。起動中の占領装置は拠点機能（復活など）を妨害し、所定時間防衛したあとに所有権を移す。支給個数、設置時間、解除・妨害条件は未決定。
 
-**Capture devices** are a **shared team inventory**, with a set number replenished to their initial allotment **each round**. Any teammate can deploy one using shared inventory; additional devices are funded by an individual's own currency. This permits spending on territory but makes repeated wasteful rush/capture attempts expensive. A capture device interferes with an objective's function while active (including respawn) and requires a defended activation period to transfer ownership. Capture-device allotment, deployment time, and counterplay timing remain TBD.
+**本部爆破装置**は、各チームがラウンド開始時に**1個だけ**持つ、実体のある携行アイテム。保持者、落下状態、設置状態を通じ、チーム内に同時に存在できる有効な装置は1個まで。保持者を敵が視認した際は「爆破装置を運んでいる」という情報を敵チームに共有するが、視界が切れた後も恒久的に座標を追跡できるわけではない。保持者が死亡すると装置を**落とす**。味方は拾って引き継げる。敵が落ちた敵装置を回収した場合は、保管・使用せず**無力化・除去**する。無力化・破壊後なら持ち主チームが新たに購入可能。回収可能な落下装置が残っている間は重複購入不可。新ラウンドで初期の無料1個へ戻る。
 
-A **headquarters demolition device** is a **unique physical carrier item**, initially **one per team each round**, held by an individual player. A team may have at most one active device at a time, including carried, dropped, or planted copies. Its carrier is revealed as carrying the device when observed by an opponent, and that intelligence is shared with the opposing team; loss of vision does not give perpetual live tracking. A dead carrier **drops** it: allies may pick it up and carry on, while an enemy **recovering a dropped opposing device means neutralizing/removing it**, not storing or wielding it. Once neutralized/destroyed, its team may buy a replacement; a recoverable dropped device does not authorize a duplicate purchase. A new round resets this system to the free initial single-device allotment.
+敵本部での装置設置は**5秒**、設置完了後の起爆待機は**25秒**。途中で妨害されなければ合計30秒で爆破。防衛側は設置妨害や解除が可能。設置済み装置が存在する状態で制限時間に達した場合の延長戦などは**未決定**。領域支配を無視した本部ラッシュが標準的な最適解にならない程度の難度を目指す。
 
-The demolition device requires **5 seconds to plant** at the enemy headquarters and **25 further seconds to detonate** if not defused: 30 seconds total from uninterrupted planting. Defenders can prevent planting or defuse. Treat a planted device's interaction with round timeout (potential overtime) as **not yet finalized**. This knockout route must be difficult enough that rushing the enemy headquarters without map control is risky, not a default winning strategy.
+**購入・配送：** 生存中でも購入キューを組める。自軍本部にいる場合は直接購入でき、死亡中はショップを閲覧・購入できる。死亡中の個人用購入品は、前線の有効な復活地点を含め、**復活時に配送**される。生存中に自軍本部へ戻った際はキューを処理して補給する。爆破装置も同じ入手・配送ルールとし、本部だけで受け取れる特別制限を設けない。購入は処理時点で購入者本人の残高・在庫制限を確認して決済。共有占領装置の購入はチーム在庫へ追加する。戦闘中の補充が反映される正確なタイミングは実装時に決める。
 
-**Purchasing:** Players can arrange purchases in a **queue while alive**, make purchases directly at their own headquarters, and browse/buy during the death interval. Personal items ordered while dead are delivered **on respawn**, including at eligible forward spawn points. While alive, entering/returning to their own headquarters processes their queue and supplies purchases. Demolition devices follow the same acquisition/delivery rule; do not add a special headquarters-only pickup restriction. Queue purchases are paid from the requesting player's funds with limits and availability validated at execution. Shared capture-device purchases are credited to team stock; exact timing for combat-time restocking is subject to implementation details.
+## クラスと能力（暫定）
 
-## Character classes and abilities (provisional)
+クラス案は**アサシン、タンク、リコン、コントロール、サポート**の5つ。ファーミングは**プレイスタイル／役割分担**でありクラスではない。全員が戦闘、ファーミング、占領、アイテム使用、インタラクトを行える。チームは自由にクラスを組み合わせられる。標準設定では**同じチームで同一キャラクターを重複選択できない**。カスタムルームでは重複を許可できる。敵味方で同じキャラクターを選ぶことは可能。
 
-Five proposed classes: **Assassin, Tank, Recon, Control, Support**. Farming is a **playstyle/assignment**, not a class; every character can fight, farm, capture, use items, and interact. Teams may combine classes freely; by default **the same character cannot be selected twice within a team**, with an optional custom-room rule allowing duplicates. Opposing teams may mirror characters.
+各クラスは強力な**共通パッシブ1つ＋共通アクティブ1つ**を持ち、これらは強化不可。各キャラクターにはさらに**固有能力3つ**があり、パッシブ／アクティブを含み、個別に資金で強化できる。したがって合計**5能力、アクティブは最大4能力**となる。通常攻撃・アイテム・帰還・インタラクト・スキルの固定キー配置は未決定。通常攻撃入力を保持すると攻撃可能なタイミングで繰り返し攻撃する。スキルは基本的に通常攻撃入力と併用でき、毎回通常攻撃を押し直す必要がない。
 
-Each class supplies **one strong passive and one active** available without upgrades. Each character supplies **three additional unique abilities**, passive and/or active, individually upgradeable using its owner's invested currency. Therefore there are **five total abilities and at most four active abilities** per character. Class abilities are **not upgradeable**. Combat action input bindings (basic attack, items, recall, interact, abilities) are to be finalized; no fixed keyboard/gamepad button assignments are mandated. Holding the basic-attack input repeatedly attacks when able, and ability activations should generally coexist with basic-attack input instead of requiring repeated basic-attack taps.
-
-| Class | Common passive (tentative where unspecified) | Common active |
+| クラス | 共通パッシブ（未定部分は暫定） | 共通アクティブ |
 | --- | --- | --- |
-| Assassin | +10% base movement speed; halve time to reach friendly supply acceleration; halve enemy supply slow percentage; halve recovery time from lingering enemy-supply slow after leaving | Temporary outgoing damage boost (amount/duration TBD) |
-| Tank | All incoming damage reduced by 20%, including damage taken through interception | Select one ally and intercept **50% of primary incoming damage** for a limited duration |
-| Recon | Increased base vision radius (magnitude TBD) | One-time snapshot scan centered on the character, sharing detected enemies' locations with the entire team; no continuing tracking |
-| Control | Team-wide improvement to applied debuffs, non-stacking across multiple Control characters | Deploy an area applying debuffs; potentially combine with smoke/visibility interference (details TBD) |
-| Support | Team-wide improvement to applied buffs, non-stacking across multiple Support characters | Apply a **100-capacity special barrier** to one selected ally for a limited duration; when a hit breaks it, excess hit damage is discarded |
+| アサシン | 基本移動速度+10%。味方補給加速の到達時間半減。敵補給減速率半減。敵補給通路を出た後の残留減速の回復時間半減 | 一定時間、与ダメージ増加（量・持続時間は未確定） |
+| タンク | 割り込み被ダメージを含むすべての被ダメージを20%軽減 | 味方1人を選び、一定時間その味方への**一次被ダメージの50%**を肩代わり |
+| リコン | 基本視界半径拡大（量は未定） | 自分中心で一度だけ周囲を索敵し、発見した敵の位置を味方全員に共有。持続追跡しない |
+| コントロール | チーム全体の付与デバフを強化。同クラス複数人でも効果重複なし | デバフ領域を設置。煙幕・視界妨害の併用は候補 |
+| サポート | チーム全体の付与バフを強化。同クラス複数人でも効果重複なし | 選択した味方1人へ容量**100**の特殊バリアを一定時間付与。破壊した一撃の超過ダメージは無効 |
 
-Tank interception is **non-recursive**: only damage from an original hit can be intercepted, not transferred damage. Up to two tanks may protect a given ally simultaneously, each intercepting 50% of primary damage, for a combined 100%. A third cannot enter that target's two active interception slots until one expires. Tank damage reduction applies to transferred damage. Barrier protection is evaluated **before** interception; interception duration still ticks while a special barrier blocks hits. Team-wide Control and Support class passives do not stack with copies of themselves. Whether buff/debuff bonuses affect other permanent class passives is not finalized; favor applying them to actively granted effects rather than modifying permanent base-class traits. Class definitions may evolve after drafting several unique characters per class.
+タンクの肩代わりは**再帰しない**。直接受けた元の攻撃からのみ肩代わりし、転送されたダメージをさらに肩代わりしない。1人の味方に最大2人のタンクが同時適用でき、それぞれ一次被ダメージの50%を肩代わりし、合計100%まで防げる。3人目はどちらかの効果が切れるまで同じ対象を保護できない。転送ダメージにはタンクの被ダメージ軽減が適用される。特殊バリアの防御判定は肩代わりより**先**に行い、バリアに守られていても肩代わり能力の持続時間は進む。コントロール・サポートのチームパッシブは同種同士で重複しない。他の恒久的クラスパッシブまで強化するかは未定で、恒久効果よりも能動的に付与したバフ・デバフへ適用する方向を優先する。キャラクター固有能力を複数作りながらクラス定義を調整する可能性がある。
 
-## Shields, flesh HP, and damage order
+## シールド、本体HP、ダメージ処理順
 
-Every character has a **normal regenerating shield** and **flesh HP**. Their base proportions should be consistent across characters rather than class-specific. Damage normally passes through layers in this order: **Support special barrier → Tank interception (if applicable) → normal shield → flesh HP**. Damage that spills over a depleted **normal shield** continues to flesh HP. Flesh HP has **no passive regeneration**; it heals while at own headquarters, from purchased healing items, or through character abilities. Exact maximum values and headquarters healing rate are TBD.
+全キャラクターは**通常の自動回復シールド**と**本体HP**を持つ。基本配分はキャラクターに共通で、クラスごとに大幅に変えない。通常の処理順は**サポートの特殊バリア → タンクの肩代わり（適用中） → 通常シールド → 本体HP**。通常シールドを超えたダメージは本体HPへ貫通する。本体HPは**自然回復しない**。自軍本部、購入した回復アイテム、キャラクター能力によって回復する。最大値・本部の回復速度は未定。
 
-After **3 seconds without taking a hit**, the normal shield regenerates at a fixed rate of **20% of its maximum per second** (zero to full in 5 regeneration seconds, or ~8 seconds including waiting). **A hit absorbed entirely by a special barrier still resets this regeneration timer**. Moving and attacking do not by themselves prevent recovery. The Support barrier is a **separate outer layer** of up to 100 durability, single-target, with an expiration time. If one hit exceeds its remaining durability, the barrier is destroyed and **all overflow from that hit is ignored**; only the next hit reaches the inner layers. A shield-refill specialist and a flesh-HP healer are potential distinct character designs, not yet fixed characters.
+**被弾せず3秒経過**すると、通常シールドが最大容量の**毎秒20%**ずつ回復する。ゼロから満タンには回復開始後5秒、待機時間込みで約8秒。**特殊バリアが被弾を完全吸収しても通常シールドの回復待機時間はリセット**される。移動・攻撃それ自体では回復を妨げない。サポートの特殊バリアは通常シールドと別の最外層で、最大耐久100、単体付与、時間経過で消滅。残耐久を上回る一撃を受けた場合、バリアは破壊されるが**その一撃の超過ダメージはすべて無効**になり、次の被弾から内側へ届く。シールド補充の専門家と本体HP回復の専門家は別キャラクター候補であり、まだ確定していない。
 
-## Initial Assassin character roster (provisional)
+## 初期アサシンのキャラクター案（暫定）
 
-The first three Assassin character concepts are **Rush**, **First Strike**, and **Warp Flanker** (descriptive working names, not final character names). They share the non-upgradeable Assassin class passive and active above, but each has three independently upgradeable character abilities (levels 0–3). Their roles deliberately differ: sustained close combat, prepared front-loaded burst, and terrain-based repositioning/back attacks.
+最初のキャラクター候補は**ラッシュ、ファーストストライク、ワープフランカー**の3つとして設計を始め、その後**キルチェイン**を追加した。いずれも説明用の仮称。共通のアサシンクラス能力は強化できず、各キャラクター固有の3能力をそれぞれレベル0〜3まで強化する。継続接近戦、先制バースト、地形を利用した背後への回り込み、連続撃破による勢いという異なる個性を持つ。
 
-**Balance baseline and calculation:** A standard character is provisionally modeled with 100 normal shield + 100 flesh HP. Standard basic attack DPS is approximately 20 before defenses and bonuses; characters can use different attack intervals. The Assassin class active's outgoing-damage bonus is tentatively **+20%** (duration and cooldown TBD). Outgoing damage modifiers are **additive percentage-point bonuses**, not multiplicative: a +30% first-strike bonus and +20% class bonus produce 150% of base damage; a 1.8× back-attack modifier counts as +80%, and with +20% class bonus produces 200% of base damage. These are tuning targets, not evidence of implemented balance. Incoming mitigation, special barriers, and interception resolve separately.
+**バランス計算の基準：** 標準的なキャラクターを通常シールド100＋本体HP100、通常攻撃DPS約20と仮定する。攻撃間隔はキャラクターごとに異なってよい。アサシン共通アクティブの与ダメージ増加は仮に**+20%**とする（持続時間・クールダウン未定）。与ダメージ補正は倍率を掛け合わせず、**割合ポイントを加算**する。例えば初撃+30%とクラス+20%は基礎ダメージの150%、背面1.8倍は+80%としてクラス+20%と合算すると200%。これらは調整目標で、実装・検証済みのバランスを意味しない。被ダメージ軽減、バリア、肩代わりは別途解決する。
 
-### Assassin A — Rush / reactive brawler
+### アサシンA — ラッシュ／反撃型の接近戦
 
-**Identity:** A straightforward melee fighter whose damage increases as the opponent hits them. The five-stack power window is deliberately obvious via HUD, character effects, and a short countdown, so beginners can unleash their skills during the window while experienced players manage timing. Particularly vulnerable to opponents who attack in few heavy hits or can survive the burst window.
+**個性：** 敵から攻撃を受けるほど与ダメージが増える、分かりやすい近接戦闘役。5スタック時の強化時間をHUD・エフェクト・短いカウントダウンで明示し、初心者でも強化中にスキルを使えるようにする。単発高威力の攻撃や強化時間をやり過ごす相手には弱い。
 
-- **Basic attack:** 10 damage every 0.5 seconds (20 DPS); hold to repeat.
-- **Unique passive — reactive stacks:** Each distinct qualifying hit received grants one stack, maximum five. Each stack increases **all outgoing damage**, including basic attacks and damaging skills, by the percentage below. On the first stack, begin a 3-second stack-expiry timer; qualifying hits while at stacks 1–4 refresh the timer to 3 seconds. Reaching stack five fixes a final **3-second maximum-stack window**: further hits **do not extend it**. At expiry, clear all stacks and prevent new stack accumulation for **5 seconds**. Hits by neutral monsters can build stacks.
-- **Unique active 1 — heavy strike:** An independent direct-damage melee skill, separate from the held basic attack.
-- **Unique active 2 — damaging blink:** Reposition along a path, dealing **30 damage** to enemies crossed regardless of upgrade. Distance grows with upgrades; base distance and geometric/collision rules TBD.
+- **通常攻撃：** 0.5秒ごとに10ダメージ（20 DPS）。入力保持で連続攻撃。
+- **固有パッシブ／被弾スタック：** 条件を満たす異なる被弾ごとに1スタック、最大5。1スタックごとに通常攻撃・ダメージスキルを含む**すべての与ダメージ**が下表の割合分増える。初回スタック獲得で3秒の消失タイマーを開始し、1〜4スタックの間は有効な被弾で3秒へ戻る。5スタック到達時には**最終3秒の最大スタック時間**を固定し、追加入力による延長はできない。終了すると全スタックを失い、**5秒間は新規スタックを得られない**。中立モンスターの攻撃でもスタックを得られる。
+- **固有アクティブ1／強打：** 通常攻撃保持とは独立した、直接ダメージを与える近接スキル。
+- **固有アクティブ2／ダメージ付きブリンク：** 経路上を移動し、通過した敵へ強化段階に関係なく**30ダメージ**。アップグレードで移動距離が伸びる。初期距離や接触・衝突処理は未定。
 
-| Level | Passive damage **per stack** | Passive bonus at five | Heavy strike damage | Heavy strike CD | Blink distance vs. base | Blink CD |
+| レベル | パッシブ：1スタック当たり | 5スタック時 | 強打ダメージ | 強打CD | ブリンク距離（基準比） | ブリンクCD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 0 | +1% | +5% | 40 | 15 s | 100% | 45 s |
-| 1 | +2% | +10% | 45 | 13 s | 110% | 40 s |
-| 2 | +3% | +15% | 50 | 12 s | 125% | 35 s |
-| 3 | +6% | +30% | 60 | 10 s | 150% | 30 s |
+| 0 | +1% | +5% | 40 | 15秒 | 100% | 45秒 |
+| 1 | +2% | +10% | 45 | 13秒 | 110% | 40秒 |
+| 2 | +3% | +15% | 50 | 12秒 | 125% | 35秒 |
+| 3 | +6% | +30% | 60 | 10秒 | 150% | 30秒 |
 
-At all three unique abilities' maximum upgrade, five stacks (+30%) plus the tentative class active (+20%) give +50% outgoing damage: a heavy strike is 90, and a damaging blink is 45 before mitigation. Define precisely which hit events (barrier-only hits, damage-over-time ticks, multi-hit abilities) generate stacks during implementation.
+固有3能力がすべて最大強化で、5スタック（+30%）と仮のクラスアクティブ（+20%）を重ねると与ダメージ+50%。防御計算前の強打は90、ブリンクは45ダメージとなる。特殊バリアだけに当たった攻撃、継続ダメージ、複数ヒットのうち、どれをスタック対象にするかは実装時に厳密化する。
 
-### Assassin B — First Strike / prepared burst
+### アサシンB — ファーストストライク／準備した先制攻撃
 
-**Identity:** Close-range assassin seeking to engage before the target can hit back. A no-damage pull creates an opening for a heavy single strike. Unlike Rush, being struck first prevents the first-hit reward.
+**個性：** 敵から攻撃される前に接近し、強い最初の一撃を狙う近接アサシン。ダメージを与えない引き寄せで隙を作り、高威力の単体攻撃を当てる。ラッシュと異なり先に被弾すると初撃特典を失う。
 
-- **Basic attack benchmark:** 20 damage once per second (20 DPS).
-- **Unique passive — first strike:** A **character-owned**, not per-target, readiness state. Only the **first damaging hit** landed while ready receives the bonus below, whether from a basic attack or damage skill; then readiness is consumed. Being hit before landing the first damaging attack removes readiness without granting the bonus. Readiness returns after **10 consecutive seconds without attacking or being hit**; attacking or being hit restarts that quiet-time timer. A non-damaging pull does not itself consume the attack bonus; its interaction with the 'without attacking' timer should be made explicit in implementation.
-- **Unique active 1 — pull:** Select one enemy within range and pull them close. **The pull deals zero damage.** Its target range (not the enemy's traveled distance) scales with upgrade. Initial range and line-of-sight/obstacle restrictions TBD.
-- **Unique active 2 — execution strike:** High-damage close-range attack with a relatively long cooldown.
+- **通常攻撃の基準：** 1秒ごとに20ダメージ（20 DPS）。
+- **固有パッシブ／ファーストストライク：** **キャラクター自身が持つ準備状態**であり、敵ごとの状態ではない。準備完了中に最初に命中した**ダメージを与える一撃**のみ、通常攻撃でもダメージスキルでも下表のボーナスを得て、その時点で準備を消費する。先に被弾した場合はボーナスを得られず準備を失う。**攻撃も被弾もない状態が連続10秒**続くと再び準備完了。攻撃・被弾で静穏時間の計測をやり直す。非ダメージの引き寄せは初撃ボーナスそのものを消費しないが、「攻撃していない10秒」の判定に含めるかは実装時に明示する。
+- **固有アクティブ1／引き寄せ：** 範囲内の敵を1人選び近くへ引き寄せる。**ダメージはゼロ**。強化で伸びるのは敵の移動距離ではなく**対象の選択射程**。初期射程や遮蔽物・視線の制約は未定。
+- **固有アクティブ2／処刑の一撃：** 比較的長いクールダウンを持つ高威力の近接攻撃。
 
-| Level | First-hit damage bonus | Pull range vs. base | Pull CD | Execution damage | Execution CD |
+| レベル | 初撃ボーナス | 引き寄せ射程（基準比） | 引き寄せCD | 処刑ダメージ | 処刑CD |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 0 | +15% | 100% | 45 s | 50 | 35 s |
-| 1 | +20% | 110% | 40 s | 60 | 30 s |
-| 2 | +25% | 125% | 35 s | 70 | 25 s |
-| 3 | +30% | 150% | 30 s | 80 | 20 s |
+| 0 | +15% | 100% | 45秒 | 50 | 35秒 |
+| 1 | +20% | 110% | 40秒 | 60 | 30秒 |
+| 2 | +25% | 125% | 35秒 | 70 | 25秒 |
+| 3 | +30% | 150% | 30秒 | 80 | 20秒 |
 
-At full upgrades, applying the first-hit +30% and tentative class-active +20% to the 80-damage execution yields **120 damage** before defense. The readiness indicator should be visually legible; the first-hit bonus must not be recreated separately for each enemy.
+最大強化時、処刑の基礎80に初撃+30%と仮のクラスアクティブ+20%を加えると、防御計算前の**120ダメージ**。準備完了の表示を明確にし、敵ごとに初撃を再獲得できるようにはしない。
 
-### Assassin C — Warp Flanker / terrain infiltration
+### アサシンC — ワープフランカー／地形を利用した潜入
 
-**Identity:** A mobile close-range flanker who bypasses ordinary map obstacles with a very short teleport, attacks from behind, and escapes before retaliation. **Neither invisibility nor clones** are part of this concept. Positioning and charge management are its primary skill expression.
+**個性：** 短距離テレポートで通常の障害物を越え、背後から攻撃して反撃前に離脱する近接キャラクター。**透明化や分身は持たない**。位置取りとチャージ管理が重要。
 
-- **Unique passive — unseen mobility:** While **outside the opposing team's current vision**, gain the movement bonus below. It stacks additively with the Assassin class's +10% base movement bonus: +15/20/25/30% total base movement bonus when unseen at levels 0/1/2/3. When observed, only the class bonus remains. Decide later whether showing this passive's readiness should intentionally reveal that the enemy has vision.
-- **Unique active 1 — short warp:** Teleport to a valid destination even across an ordinary wall, without damaging anyone. Always **maximum two stored charges**, with **sequential** recharge (e.g., both charges depleted at level 3 recover after 5 and 10 seconds). Destination must be traversable; special no-teleport boundaries such as headquarters protections may be required. Each level sets maximum displacement and recharge time below.
-- **Unique active 2 — back ambush:** A direct-damage active, **not** a modified next basic attack. Damage is multiplied by the back-hit bonus when the hit originates from the target's rear; a front/side hit uses normal damage. Any successful hit applies **−20% movement speed and −20% basic attack speed**: **1 second on front/side hits, 3 seconds on rear hits**. The back-angle criterion (e.g., rear 120°), facing rules, and interactions with stacking slows remain TBD.
+- **固有パッシブ／非視認時の機動力：** **敵チームの現在の視界の外**にいる間、下表の速度ボーナスを得る。アサシンクラスの基本移動速度+10%と加算され、レベル0/1/2/3の合計ボーナスは+15/20/25/30%。視認されているとクラス分の+10%だけとなる。このパッシブの準備表示が敵の視界の有無を知らせるべきかは未決定。
+- **固有アクティブ1／短距離ワープ：** 通常の壁を越えて有効な地点へ転移する。ダメージなし。最大保持チャージは常に**2**、回復は**順番に1つずつ**（レベル3で両方消費すると5秒後と10秒後に回復する例）。到着地点は通行可能でなければならない。本部付近など転移禁止の特別境界は必要に応じて設ける。移動距離・補充時間は下表。
+- **固有アクティブ2／背面奇襲：** 次の通常攻撃を強化する効果ではなく、**独立した直接ダメージスキル**。対象の背後から当てると背面倍率を適用し、前面・側面なら通常ダメージ。命中時は移動速度と通常攻撃速度をともに**20%減少**させる。正面／側面では**1秒**、背面では**3秒**。背面の角度（例：後方120度）、向き判定、減速の重複は未決定。
 
-| Level | Unseen move speed | Warp max distance | Warp recharge per charge | Ambush base damage | Rear multiplier | Ambush rear damage (no class active) | Ambush CD |
+| レベル | 視界外の移動速度追加分 | ワープ最大距離 | 1チャージ補充 | 奇襲基礎ダメージ | 背面倍率 | 背面ダメージ（共通強化なし） | 奇襲CD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 0 | +5% | 2.5 tiles | 10 s | 40 | 1.5× | 60 | 30 s |
-| 1 | +10% | 2.5 tiles | 8 s | 45 | 1.6× | 72 | 25 s |
-| 2 | +15% | 3 tiles | 7 s | 50 | 1.7× | 85 | 20 s |
-| 3 | +20% | 4 tiles | 5 s | 60 | 1.8× | 108 | 15 s |
+| 0 | +5% | 2.5タイル | 10秒 | 40 | 1.5倍 | 60 | 30秒 |
+| 1 | +10% | 2.5タイル | 8秒 | 45 | 1.6倍 | 72 | 25秒 |
+| 2 | +15% | 3タイル | 7秒 | 50 | 1.7倍 | 85 | 20秒 |
+| 3 | +20% | 4タイル | 5秒 | 60 | 1.8倍 | 108 | 15秒 |
 
-Rear multipliers are represented as additive damage modifiers alongside the class damage boost: at max level, **60 × (1 + 0.80 rear + 0.20 class active) = 120** before defenses. A front/side hit with the same class active deals **72**. The character has a stronger and more frequently available ambush than First Strike when flanking succeeds, but relies on reaching the target's rear and managing two short warp charges. Confirm this trade-off through playtests; rear-hit accessibility and warp evasion are critical balance risks.
+背面倍率はクラス与ダメージ補正と加算する。最大レベルでは**60 × (1 + 背面0.80 + クラスアクティブ0.20) = 120**。同条件の前面／側面は**72**。側面取りに成功すればファーストストライクより高頻度・高火力で奇襲できる一方、背後への到達とチャージ管理が必要。この差は実際の戦闘で確認する。背面判定の取りやすさとワープ回避能力は重要なバランスリスク。
 
-### Assassin D — Kill Chain / elimination momentum
+### アサシンD — キルチェイン／連続撃破の勢い
 
-**Identity:** A close-range assassin who builds momentum by personally finishing enemy combatants. Unlike Rush, maximum stacks may be **refreshed indefinitely** by qualifying events. Ordinary neutral-monster farming does **not** generate stacks. The first elimination is difficult; successive eliminations become easier, so balance should be tested against both human and AI teams.
+**個性：** 敵プレイヤー相当の戦闘員にとどめを刺して勢いを増す近接アサシン。ラッシュとは異なり、最大スタック中でも条件達成で**無制限に持続時間を更新できる**。普通の中立モンスターファーミングではスタックを増やせない。最初の撃破が難しく、連続撃破ほど有利になるため、人間相手とAI相手の両方で極端な優位が生じないか検証する。
 
-- **Unique passive — elimination stacks:** Award **+1 stack only when this character deals the killing blow** to an opposing human player or a player-equivalent AI combatant. Maximum **five**. Each stack increases **all outgoing damage** by the level-dependent percentage below, additive with the Assassin class damage active. Every eligible killing blow refreshes the **whole-stack expiration timer**, including when already at five stacks. On expiry, clear all stacks; there is **no post-expiry accumulation cooldown**.
-- **Maintenance without accumulation:** An assist on an opposing human/player-equivalent AI elimination, or personally killing a neutral monster, **refreshes the expiration timer but does not grant stacks**. An assist is actual credited participation in an elimination, not merely standing nearby. Refreshing while at zero does not create stacks. Neutral monsters never count as player-equivalent units simply because they are AI-controlled.
-- **Unique active 1 — finishing strike:** A direct-damage melee skill. If **this skill delivers the killing blow** to an opposing player/player-equivalent AI, grant **one additional stack** on top of the normal killing-blow stack, i.e. **+2 total**, capped at five. A neutral monster killed by this skill grants no stacks (but may refresh existing stacks).
-- **Unique active 2 — assault dash:** A movement skill with context-sensitive behavior. When an opposing combatant is within targeting range, the dash **automatically steers/pulls the caster toward a target** and on contact deals damage and applies a brief stun. When no eligible opposing combatant is within range, use the same ability as a **plain directional dash**, with no contact-damage/stun event. Prefer a target near the player's input direction if several are eligible, rather than arbitrarily selecting one. Exact distance, target acquisition priority, obstacle collision, and whether a non-target collision ends the dash are still open.
+- **固有パッシブ／撃破スタック：** 敵の人間プレイヤー、または**プレイヤー相当のAI戦闘員**に対して、本人が**最後の一撃を与えた場合のみ**+1スタック。最大**5**。各スタックが通常攻撃・スキルを含む**すべての与ダメージ**を下表の割合で増やし、クラス共通の与ダメージ強化と加算される。有効な撃破ごとに**全スタック共通の消滅タイマー**を更新し、最大5スタックでも更新できる。期限が切れると全消失し、**再獲得クールダウンはない**。
+- **スタックを増やさない維持条件：** 敵プレイヤー／プレイヤー相当AIの撃破アシスト、または中立モンスターへの本人のとどめは、**既存スタックの消滅タイマーのみ更新**し、スタック数は増やさない。アシストは撃破への実際の貢献が記録された場合に限り、近くにいるだけでは認めない。0スタック時の更新でスタックが生まれるわけではない。中立モンスターはAI制御であってもプレイヤー相当とみなさない。
+- **固有アクティブ1／とどめの一撃：** 直接ダメージの近接スキル。このスキルが敵プレイヤー／プレイヤー相当AIへの**とどめになった場合**、通常の撃破スタック+1に加えて**追加+1**、合計**+2**（上限5）。中立モンスターでは増えないが既存スタックの時間は更新できる。
+- **固有アクティブ2／突撃ダッシュ：** 状況に応じて振る舞いが変わる移動スキル。対象範囲内に敵戦闘員がいれば、**その対象へ向かって自動的に方向を補正**し、接触時にダメージと短いスタンを与える。対象がいない場合は、**入力した方向への普通のダッシュ**となり、接触ダメージ・スタンは発生しない。対象候補が複数の場合は、入力方向に近い相手を優先する。距離、候補の優先順位、障害物との衝突、非対象の接触による停止は未決定。
 
-| Level | Damage bonus per passive stack | Maximum bonus at 5 stacks | Stack lifetime | Finishing strike damage | Finishing strike CD | Assault dash damage | Assault dash stun | Assault dash CD |
+| レベル | スタック当たりダメージ増加 | 5スタック時 | スタック持続 | とどめダメージ | とどめCD | ダッシュダメージ | ダッシュのスタン | ダッシュCD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 0 | +3% | +15% | 10 s | 30 | 15 s | 20 | 0.5 s | 30 s |
-| 1 | +4% | +20% | 15 s | 35 | 13 s | 25 | 0.6 s | 25 s |
-| 2 | +5% | +25% | 17 s | 40 | 11 s | 30 | 0.8 s | 20 s |
-| 3 | +6% | +30% | 20 s | 50 | 9 s | 40 | 1.0 s | 15 s |
+| 0 | +3% | +15% | 10秒 | 30 | 15秒 | 20 | 0.5秒 | 30秒 |
+| 1 | +4% | +20% | 15秒 | 35 | 13秒 | 25 | 0.6秒 | 25秒 |
+| 2 | +5% | +25% | 17秒 | 40 | 11秒 | 30 | 0.8秒 | 20秒 |
+| 3 | +6% | +30% | 20秒 | 50 | 9秒 | 40 | 1.0秒 | 15秒 |
 
-The **cooldown sequence of assault dash (30/25/20/15 s)**, the **stack lifetime sequence (10/15/17/20 s)**, and the **last-hit-only stack acquisition** are deliberate design decisions. The strike/dash damage and dash stun values remain **initial proposals subject to balance tests**. Stun prevents movement, basic attacks, and active ability use while applied (subject to general crowd-control rules still to be set).
+**ダッシュCDが30/25/20/15秒、スタック持続が10/15/17/20秒、スタック獲得が本人のとどめのみ**であることは意図した設計。ダメージ・スタン数値はバランステスト前の案。スタン中は移動、通常攻撃、アクティブスキルができない（一般的な行動阻害ルールは今後策定）。
 
-This character is *not* meant to build damage by endlessly farming monsters; killing monsters only lets already-earned combat momentum persist. Kill credits and assists must be decided by the authoritative combat simulation, consistently for humans and player-equivalent AI. Test finishing-strike kill attribution, simultaneous lethal hits, dash auto-targeting near multiple enemies, and whether a skilled player's momentum becomes too dominant once started.
+このキャラクターは中立モンスターを無限に倒して与ダメージを蓄積する設計ではない。モンスター撃破は**すでに獲得した勢いの維持**にのみ使える。とどめ判定とアシスト判定は権威を持つ戦闘シミュレーションが確定し、人間とプレイヤー相当AIを同一に扱う。とどめスキルの撃破判定、同時致死攻撃、複数敵へのダッシュ自動照準、連続撃破による過度な有利を検証する。
 
-### Assassin-specific open questions
+### アサシン固有の未決定事項
 
-- Final character names, appearances, animations, base attack ranges, facing indicators, precise hitboxes, and crowd-control rules.
-- Assassin common active duration and cooldown (the +20% damage amount is a provisional balance assumption, not finalized).
-- Precise first-strike timer reset semantics for non-damaging ability use, along with qualification rules for reactive stacks and shield-absorbed hits.
-- Collision, warp routing/arrival validity, restricted geometry, rear-hit angles, and whether an enemy turning during a warp can reliably counter an ambush.
-- Whether repeated movement/attack-speed debuffs refresh, stack, or use the strongest effect; interaction with powered enemy-corridor slows.
-- Benchmark survivability and matchups against Tank interception and Support's overflow-negating special barrier; test all numbers with AI and human PvP before locking balance.
+- 正式なキャラクター名、外見、アニメーション、通常攻撃射程、向き表示、当たり判定、行動阻害の共通ルール。
+- アサシン共通アクティブの持続時間・クールダウン（与ダメージ+20%は仮の調整値）。
+- 非ダメージスキルでファーストストライクの静穏タイマーをリセットするか。ラッシュの被弾スタックで特殊バリア・継続ダメージをどう扱うか。
+- 衝突・ワープ到着地点、転移禁止の地形、背面判定角度、敵が振り向いたとき奇襲を防げるか。
+- 移動速度／攻撃速度の低下が再付与で延長・重複するか、最強値のみを採用するか。敵補給線の減速との合成方法。
+- タンクの肩代わり、サポートの超過ダメージ無効バリアとの相性。AI・人間の対戦で数値を確かめてから確定する。
+
+## 操作設計（PC・ゲームパッド・スマートフォン）
+
+> **状態：** スマホでの操作方式を検討するための設計方針。ボタン配置、操作補助、照準優先順位は試作・プレイテストで調整する。Simpludifyの公開APIとして仮想スティック／ドラッグスキルがすでに提供されていることは前提としない。
+
+### 共通の操作命令
+
+操作デバイスの違いにかかわらず、ゲームルールが受け取る入力をなるべく共通化する。
+
+- **移動方向：** 独立した2次元方向入力。
+- **照準方向：** おおまかな2次元方向入力。通常攻撃はこの方向の候補から**主に単体の敵を自動選択し、選ばれた対象に命中**する。通常攻撃を厳密な直線弾道にはしない。
+- **対象変更・固定：** 照準方向による候補選択に加え、明示的な対象切り替えを用意する。同じ方向に敵が複数いる場合も操作できるようにする。
+- **通常攻撃の意思：** 攻撃方向／選択対象と、実際に攻撃したいかどうかを分離する。敵を狙うだけで攻撃しない状態を許す。
+- **スキル発動：** 通常攻撃とは独立して最大4つのアクティブスキルを起動できる。通常攻撃の入力を保持しながらスキル入力を受け付ける。
+- **その他：** アイテム、インタラクト、帰還、拠点装置の設置・解除、対象選択など。競合時の行動優先順位はゲームルールが定義する。
+
+人間、AI、将来のネットワーク入力は共通命令の発生源となり得るが、**AIの意思決定とネットワーク通信はStraidhold／専用アダプター側の責務**。特定の入力装置や「プレイヤー」という種別にキャラクター固有ロジックを依存させない。
+
+### 通常攻撃と照準
+
+通常攻撃は**おおまかな方向指定＋自動的な単体ターゲット選択**を基本とする。攻撃入力がある場合、射程、方向との角度、現在の対象、視界・遮蔽物などの制約から有効な対象を選び、通常攻撃を適用する。命中が保証されるのはゲーム内の対象選択・攻撃成立条件を満たした場合のみで、射程外や不可視の敵へ無条件に命中させない。
+
+- 小さな照準の揺れで対象が頻繁に入れ替わらないよう、**現在の対象維持に一定の優先度**を与える。
+- ただし、手動のターゲット切り替えを尊重する。候補の優先順位やロック解除条件は試作で確定する。
+- 対象が死亡・無効化された場合は、通常状態では次の有効対象への自動切り替えを基本案とする。手動ロック中に自動切り替えを許すかは設定・ルールとして別途検討する。
+- スキルによる単体攻撃も対象指定が必要な場合は同じ選択機構を利用できるが、スキル固有の範囲・対象制限を適用する。
+
+### スマートフォン向け操作
+
+画面左側に**移動用の仮想スティック**を配置する。画面右側には**大きな通常攻撃ボタン**と最大4つのスキルボタンをまとめ、必要に応じてアイテム・帰還・インタラクトの補助ボタンを配置する。常設の独立した右照準スティックを必須にはしない。
+
+- **通常攻撃ボタンをタップ：** 自動的に選択した有効対象へ攻撃する。攻撃方向を明示したい場合は**通常攻撃ボタンをドラッグ**しておおまかな方向／対象を指定する。
+- **スキルボタンをタップ：** 方向や対象の指定が不要な自己強化などは即時発動。指定が必要なスキルは適切な既定対象・方向を利用するか、選択を要求する。誤発動を防ぐ具体的な規則はスキル種別ごとに定義する。
+- **スキルボタンをドラッグ：** 方向指定、地点指定、単体選択が必要な場合に照準プレビューを表示。指を離して確定、キャンセル領域へ戻す等で取り消す方式を検討する。
+- **対象指定スキル：** 敵または味方を選択するスキルでは、現在の対象を使える場合と、スキルごとに別の対象を指定する場合を区別する。
+- **その他の操作：** アイテムは専用ボタン／展開式の小型パレットを候補とし、インタラクトは使用可能な場面で表示する。装置設置など継続行動は長押しや専用の進捗表示と組み合わせる。
+- **マルチタッチ：** 左スティックによる移動を維持しながら、右の攻撃・スキルボタンを操作できる。各接触点を独立して追跡し、指を離したときの入力残留を防ぐ。画面回転やフォーカス喪失時も安全に解除する。
+
+**方向不要・単体指定・方向指定・地点指定**などのスキル種別を明示し、すべての能力に方向ドラッグを強制しない。操作UIのタップ／ドラッグ挙動は対象種別に沿って変える。
+
+### 通常攻撃の継続とスキルの併用
+
+通常攻撃は**押下中に繰り返す**動作を基本とし、オプションで**トグル（押下状態の保持）**を選べるようにする案。さらに射程内の敵を選ぶ完全自動攻撃は、入力保持と異なる機能として分けて検討する。
+
+- 通常攻撃の保持中・トグル中でも**スキル入力を受け付ける**。スキルごとの詠唱・硬直等で実際に攻撃不能な時間があっても、入力保持状態と実行可否は別管理する。
+- スマホの右親指は攻撃ボタンとスキルボタンを交互に操作するため、トグル中はスキル操作へ移っても攻撃意思が継続する設計を検討する。
+- トグルの停止はいつでも簡単に行えるようにする。トグルと完全自動のターゲット探索を混同しない。
+- **初撃強化を温存できることが重要。** ファーストストライクのように最初のダメージ命中で強化が消費されるキャラクターでは、意図しない通常攻撃でボーナスを浪費し得る。照準だけを行い攻撃しない状態、明示的な攻撃停止、必要なら「初撃強化中に自動攻撃を抑制する」任意設定を検討する。
+- 自動保護を必須にすると戦術判断が消えるため、プレイヤーが明示的に攻撃した場合は実行可能にする。保護設定の詳細は未決定。
+- 連続攻撃やターゲット自動切り替えの補助が、PC・ゲームパッド・タッチ間で実質的な火力差を生まないよう調整する。
+
+### PC・ゲームパッドとの整合性
+
+PCではキーボード移動とマウス方向指定・対象切り替え、ゲームパッドでは左スティック移動と右スティックによる方向指定、および攻撃・スキルボタンの組み合わせを初期候補とする。両者ともスキルと通常攻撃の入力を独立させる。固定ボタン割り当てはまだ決めず、再割り当て可能にする。
+
+実装では**Simpludify v0.1.4のActionシステムで実際に利用できる公開機能を確認**し、必要なタッチ用仮想スティック／ドラッグ照準UIはStraidhold側で試作する。汎用性が確認できた場合にのみSimpludifyの共通コンポーネント化を検討する。現行SDKに未実装のAPIを存在するものとして扱わない。
+
+### 操作の検証課題
+
+- 5対5で対象が密集した場合、方向入力で目的の単体を選び分けられるか。
+- 移動・通常攻撃・スキルを併用しながら、スマホの**両親指だけ**で快適に操作できるか。
+- 初撃強化のキャラクターが、トグルや自動選択によって不利にならないか。
+- スキルの種類ごとにタップ／ドラッグ／キャンセルが分かりやすいか。
+- 手動ロックと自動ターゲット更新、敵撃破時の自動移行が意図どおりか。
+- アイテム・設置・帰還・インタラクトを追加しても画面が窮屈にならず、誤操作が増えないか。
+- タッチ、キーボード、ゲームパッド、AI操作が共通のゲームルールを利用できるか。

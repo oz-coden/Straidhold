@@ -50,4 +50,5 @@ npm run test:browser
 - [v0.1.0 試作仕様](docs/prototype-v0.1.0.md)
 - [ゲームデザイン](docs/game-design.md)
 - [ネットワークとシミュレーション](docs/networking.md)
+- [製品提供・オフラインプレイ・サーバー運用方針](docs/product-and-hosting.md)
 - [開発ロードマップ](docs/roadmap.md)

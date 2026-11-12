@@ -153,7 +153,9 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
   fireButton.onCancel(() => { touchTap = undefined; touchHold = false; touchAim = null; });
 
   const signal = context.signal;
-  game.element.addEventListener("pointerdown", (event) => {
+  // Switch mode before Simpludify routes the same pointerdown on the canvas host.
+  const surface = game.element.parentElement!;
+  surface.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "touch" || event.pointerType === "pen") {
       lastTouch = performance.now();
       if (settings.mode === "auto") setMode("touch");

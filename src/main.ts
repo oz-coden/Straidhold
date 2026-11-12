@@ -185,14 +185,15 @@ dialog.addEventListener("close", () => {
   if (active) game.element.focus({ preventScroll: true });
   if (resultShown) touchView.layer.hidden = true;
 }, { signal: life.signal });
+function dispose() {
+  life.abort();
+  game.dispose();
+  get("map-labels").replaceChildren();
+  touchView.layer.hidden = true;
+}
 window.addEventListener("pagehide", (event) => {
-  if (event.persisted) return;
-  life.abort();
-  game.dispose();
+  if (!event.persisted) dispose();
 }, { signal: life.signal });
-import.meta.hot?.dispose(() => {
-  life.abort();
-  game.dispose();
-});
+import.meta.hot?.dispose(dispose);
 
 game.run("briefing").then(() => { start.disabled = false; }).catch(report);

@@ -43,11 +43,6 @@ test("desktop plays the production build through attack, capture, result and rem
   await expect(page.locator("#blue-score")).toHaveText("0");
   await expect(page.locator("#map-labels .map-label")).toHaveCount(5);
   await expect(canvas).toHaveCount(1);
-  const counts = await page.evaluate(() => {
-    window.dispatchEvent(new PageTransitionEvent("pagehide"));
-    return [document.querySelectorAll("#game canvas").length, document.querySelectorAll("#map-labels .map-label").length];
-  });
-  expect(counts).toEqual([0, 0]);
   expect(errors).toEqual([]);
 });
 
@@ -159,11 +154,15 @@ test("standard gamepad takes over on intentional input and respects drift and ma
   expect(errors).toEqual([]);
 });
 
-test("invalid and obsolete saved settings fall back to usable values", async ({ page }) => {
+test("saved settings recover safely and leaving an active match releases its resources", async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem("straidhold.controls", JSON.stringify({ version: 1, mode: "alien", stick: 9, size: 1000, opacity: -1, deadZone: "99" }));
+    const stored = location.search
+      ? { version: 0, mode: "gamepad", stick: "fixed" }
+      : { version: 1, mode: "alien", stick: 9, size: 1000, opacity: -1, deadZone: "99" };
+    localStorage.setItem("straidhold.controls", JSON.stringify(stored));
   });
   await page.goto("/");
+  await expect(page.locator("#clock")).toHaveText("05:00");
   await page.locator("#open-settings").click();
   const dialog = page.locator("#settings");
   await expect(dialog.locator('[name="mode"]')).toHaveValue("auto");
@@ -171,4 +170,20 @@ test("invalid and obsolete saved settings fall back to usable values", async ({ 
   await expect(dialog.locator('[name="size"]')).toHaveValue("68");
   await expect(dialog.locator('[name="opacity"]')).toHaveValue("25");
   await expect(dialog.locator('[name="deadZone"]')).toHaveValue("15");
+
+  await page.goto("/?stored=legacy");
+  await page.locator("#open-settings").click();
+  await expect(dialog.locator('[name="mode"]')).toHaveValue("auto");
+  await expect(dialog.locator('[name="stick"]')).toHaveValue("floating");
+  await expect(dialog.locator('[name="size"]')).toHaveValue("44");
+  await dialog.getByRole("button", { name: "閉じる" }).click();
+  await page.locator("#start").click();
+  await expect(page.locator("#overlay")).toBeHidden();
+  await expect(page.locator("#game canvas")).toHaveCount(1);
+  await expect(page.locator("#map-labels .map-label")).toHaveCount(5);
+  const counts = await page.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent("pagehide"));
+    return [document.querySelectorAll("#game canvas").length, document.querySelectorAll("#map-labels .map-label").length];
+  });
+  expect(counts).toEqual([0, 0]);
 });

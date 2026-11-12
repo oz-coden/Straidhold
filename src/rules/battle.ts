@@ -13,7 +13,20 @@ export const SITE_RADIUS = 54;
 export const ACTIVATE_TICKS = 5 * HZ;
 export const ABANDON_TICKS = 2.5 * HZ;
 
-export const recruit = {
+export interface FighterProfile {
+  readonly hp: number;
+  readonly shield: number;
+  readonly speed: number;
+  readonly damage: number;
+  readonly attackTicks: number;
+  readonly range: number;
+  readonly vision: number;
+  readonly shieldDelay: number;
+  readonly shieldPerSecond: number;
+  readonly hqHealPerSecond: number;
+}
+
+export const recruit: FighterProfile = {
   hp: 100,
   shield: 100,
   speed: 151,
@@ -24,7 +37,7 @@ export const recruit = {
   shieldDelay: 3 * HZ,
   shieldPerSecond: 20,
   hqHealPerSecond: 24,
-} as const;
+};
 
 export interface Fighter {
   readonly id: string;
@@ -33,7 +46,7 @@ export interface Fighter {
   readonly actor: Actor;
   readonly position: Transform;
   readonly motion: Motion;
-  readonly profile: typeof recruit;
+  readonly profile: FighterProfile;
   hp: number;
   shield: number;
   downUntil: number;
@@ -63,7 +76,11 @@ type CommandSource = (fighter: Fighter, battle: Battle) => Command;
 class ReadCommands extends Component {
   static readonly type: ComponentType<ReadCommands> = defineComponent<ReadCommands>("StraidholdCommands");
   readonly type = ReadCommands.type;
-  constructor(private readonly read: () => void) { super(); }
+  constructor(read: () => void) {
+    super();
+    this.read = read;
+  }
+  private readonly read: () => void;
   override update() { this.read(); }
 }
 
@@ -103,7 +120,10 @@ export class Battle {
   tick = 0;
   result: Team | "draw" | null = null;
 
-  constructor(scene: Scene, atlas: string, seconds: number, private readonly source: CommandSource) {
+  private readonly source: CommandSource;
+
+  constructor(scene: Scene, atlas: string, seconds: number, source: CommandSource) {
+    this.source = source;
     if (!Number.isInteger(seconds) || seconds < 1 || seconds > ROUND_SECONDS) throw new RangeError("Invalid round duration");
     this.duration = seconds * HZ;
     new CollisionWorld(scene);
@@ -143,7 +163,10 @@ export class Battle {
         fighter.actor.enabled = true;
       }
     }
-    const commands = this.fighters.map((fighter) => fighter.hp > 0 ? validate(this.source(fighter, this)) : IDLE);
+    const commands = this.fighters.map((fighter) => {
+      const command = this.source(fighter, this);
+      return fighter.hp > 0 ? validate(command) : IDLE;
+    });
     this.fighters.forEach((fighter, i) => {
       const command = commands[i];
       fighter.command = command;

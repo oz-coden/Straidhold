@@ -1,0 +1,35 @@
+{
+  "name": "straidhold",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "tsc",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
+    "test:browser": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oz-coden/Straidhold.git"
+  },
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/oz-coden/Straidhold/issues"
+  },
+  "homepage": "https://github.com/oz-coden/Straidhold#readme",
+  "dependencies": {
+    "@simpludify/core": "0.2.1",
+    "@simpludify/web": "0.2.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.57.0",
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3",
+    "vite": "7.2.2"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  }
+}

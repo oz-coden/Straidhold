@@ -1,4 +1,4 @@
-import { CollisionResponse, Grid, SpriteSheet, Tilemap, type Point, type Scene } from "@simpludify/core";
+import { CollisionResponse, Grid, SpriteSheet, Tilemap, type CollisionWorld, type Point, type RaycastOptions, type Scene } from "@simpludify/core";
 
 export const TILE = 32;
 export const COLS = 30;
@@ -67,14 +67,20 @@ export const wallCorners: readonly Point[] = wallBounds.flatMap(({ left, top, ri
   { x: left, y: top }, { x: right, y: top }, { x: right, y: bottom }, { x: left, y: bottom },
 ]);
 
-// Return the first solid intersection along a finite segment. Padding uses
-// the same geometry to test clearance for AI pathing.
-export function wallHit(from: Point, dx: number, dy: number, padding = 0): number | null {
-  let nearest = 1;
-  let hit = false;
+const terrainRaycast = { targets: "tiles", layers: 1 } satisfies RaycastOptions;
+
+export function castTerrain(collisions: CollisionWorld, from: Point, to: Point) {
+  return collisions.raycast({ from, to }, terrainRaycast);
+}
+
+// Navigation checks a segment against expanded rectangles to leave room for
+// the fighter's collider. An ordinary terrain ray has no clearance.
+export function hasClearance(from: Point, to: Point, padding: number): boolean {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
   for (const { left, top, right, bottom } of wallBounds) {
     let enter = 0;
-    let exit = nearest;
+    let exit = 1;
     if (dx === 0) {
       if (from.x < left - padding || from.x > right + padding) continue;
     } else {
@@ -93,15 +99,9 @@ export function wallHit(from: Point, dx: number, dy: number, padding = 0): numbe
       exit = Math.min(exit, Math.max(a, b));
       if (enter > exit) continue;
     }
-    nearest = enter;
-    hit = true;
-    if (nearest === 0) break;
+    return false;
   }
-  return hit ? nearest : null;
-}
-
-export function clearLine(from: Point, to: Point, padding = 0): boolean {
-  return wallHit(from, to.x - from.x, to.y - from.y, padding) === null;
+  return true;
 }
 
 const cellOf = (p: Point) => Math.floor(p.y / TILE) * COLS + Math.floor(p.x / TILE);
@@ -112,7 +112,7 @@ const center = (cell: number): Point => ({
 const neighbors = [[0, -1], [-1, 0], [1, 0], [0, 1]] as const;
 
 export function route(from: Point, goal: Point): Point[] {
-  if (clearLine(from, goal, RADIUS)) return [goal];
+  if (hasClearance(from, goal, RADIUS)) return [goal];
   const start = cellOf(from);
   const end = cellOf(goal);
   const previous = new Int16Array(COLS * ROWS).fill(-1);

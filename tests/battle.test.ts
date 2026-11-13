@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Engine, Scene } from "@simpludify/core";
-import { clearLine, distance, HQ, RADIUS, route } from "../src/rules/arena.ts";
+import { castTerrain, distance, hasClearance, HQ, RADIUS, route } from "../src/rules/arena.ts";
 import { createAI } from "../src/rules/ai.ts";
 import { ABANDON_TICKS, ACTIVATE_TICKS, Battle, HZ, recruit, ROUND_SECONDS, selectTarget, STEP } from "../src/rules/battle.ts";
 import { IDLE, validate, type Command } from "../src/rules/command.ts";
@@ -38,13 +38,13 @@ test("movement collides with Tilemap walls and route finds a detour with clearan
   orders.set(player.id, { ...IDLE, move: { x: 1, y: 0 } });
   step(90);
   assert.ok(Math.abs(player.position.x - (352 - RADIUS)) < 0.01, `wall contact x=${player.position.x}`);
-  assert.equal(clearLine({ x: 320, y: 272 }, { x: 450, y: 272 }), false);
+  assert.ok(castTerrain(battle.collisions, { x: 320, y: 272 }, { x: 450, y: 272 }));
   const start = { x: 320, y: 272 };
   const goal = { x: 450, y: 272 };
   const path = route(start, goal);
   assert.ok(path.length > 1);
   assert.deepEqual(path.at(-1), goal);
-  path.forEach((point, i) => assert.ok(clearLine(i === 0 ? start : path[i - 1], point, RADIUS)));
+  path.forEach((point, i) => assert.ok(hasClearance(i === 0 ? start : path[i - 1], point, RADIUS)));
   engine.dispose();
 });
 
@@ -63,14 +63,14 @@ test("aim selects a valid single enemy, retains it across small changes and igno
   dead.hp = 0;
   dead.downUntil = Infinity;
   const right = { x: 1, y: 0 };
-  assert.equal(selectTarget(player, battle.fighters, right), nearby);
+  assert.equal(selectTarget(battle.collisions, player, battle.fighters, right), nearby);
   player.target = front;
-  assert.equal(selectTarget(player, battle.fighters, right), front);
-  assert.equal(selectTarget(player, battle.fighters, { x: -1, y: 0 }), behind);
+  assert.equal(selectTarget(battle.collisions, player, battle.fighters, right), front);
+  assert.equal(selectTarget(battle.collisions, player, battle.fighters, { x: -1, y: 0 }), behind);
   Object.assign(player.position, { x: 320, y: 272 });
   Object.assign(front.position, { x: 425, y: 272 });
   Object.assign(nearby.position, { x: 450, y: 272 });
-  assert.equal(selectTarget(player, battle.fighters, right), undefined);
+  assert.equal(selectTarget(battle.collisions, player, battle.fighters, right), undefined);
   step();
   assert.equal(battle.shots.length, 0);
   engine.dispose();

@@ -125,7 +125,7 @@ game.scene("match", (context) => {
   const battle = new Battle(context.scene, atlas, seconds, (fighter, state) =>
     fighter.id === "blue-2" ? input.sample(fighter.position) : ai(fighter, state));
   const player = battle.fighters[2];
-  const vision = new TeamVision(player.team, battle.fighters);
+  const vision = new TeamVision(battle.collisions, player.team, battle.fighters);
   const fog = createFog(game, get("battlefield"), vision);
   const minimap = createMinimap(game, get("battlefield"), battle, player, vision, fog.mask);
   const roster = createRoster(get("roster"), battle, player);

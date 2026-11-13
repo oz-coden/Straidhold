@@ -3,7 +3,7 @@ import {
   Component, defineComponent, Motion, Transform,
   type ComponentType, type Point, type Scene,
 } from "@simpludify/core";
-import { clearLine, distance, HQ, placeArena, RADIUS, SITES, spawn, TEAMS, toward, type Team } from "./arena.ts";
+import { castTerrain, distance, HQ, placeArena, RADIUS, SITES, spawn, TEAMS, toward, type Team } from "./arena.ts";
 import { IDLE, validate, ZERO, type Command } from "./command.ts";
 import { seesPoint } from "./vision.ts";
 
@@ -87,11 +87,11 @@ class ReadCommands extends Component {
   override update() { this.read(); }
 }
 
-export function canSee(observer: Fighter, target: Fighter): boolean {
-  return target.hp > 0 && seesPoint(observer, target.position);
+export function canSee(collisions: CollisionWorld, observer: Fighter, target: Fighter): boolean {
+  return target.hp > 0 && seesPoint(collisions, observer, target.position);
 }
 
-export function selectTarget(fighter: Fighter, fighters: readonly Fighter[], aim: Point | null): Fighter | undefined {
+export function selectTarget(collisions: CollisionWorld, fighter: Fighter, fighters: readonly Fighter[], aim: Point | null): Fighter | undefined {
   let best: Fighter | undefined;
   let bestScore = -Infinity;
   for (const target of fighters) {
@@ -101,7 +101,7 @@ export function selectTarget(fighter: Fighter, fighters: readonly Fighter[], aim
     if (range > Math.min(fighter.profile.range, fighter.profile.vision)) continue;
     const alignment = aim && range > 0 ? (aim.x * offset.x + aim.y * offset.y) / range : 1;
     if (aim && alignment < (target === fighter.target ? 0.48 : 0.57)) continue;
-    if (!clearLine(fighter.position, target.position)) continue;
+    if (castTerrain(collisions, fighter.position, target.position)) continue;
     const score = 1.45 * alignment - range / fighter.profile.range + (target === fighter.target ? 0.23 : 0);
     if (score > bestScore || (score === bestScore && best && target.id < best.id)) {
       best = target;
@@ -112,6 +112,7 @@ export function selectTarget(fighter: Fighter, fighters: readonly Fighter[], aim
 }
 
 export class Battle {
+  readonly collisions: CollisionWorld;
   readonly fighters: readonly Fighter[];
   readonly sites: Site[] = SITES.map((site) => ({ ...site, owner: null, device: null }));
   readonly scores = { blue: 0, red: 0 };
@@ -127,7 +128,7 @@ export class Battle {
     this.source = source;
     if (!Number.isInteger(seconds) || seconds < 1 || seconds > ROUND_SECONDS) throw new RangeError("Invalid round duration");
     this.duration = seconds * HZ;
-    new CollisionWorld(scene);
+    this.collisions = new CollisionWorld(scene);
     placeArena(scene, atlas);
     scene.add(new Actor({ id: "commands" })).add(new ReadCommands(() => this.read()));
     this.fighters = TEAMS.flatMap((team) => Array.from({ length: 5 }, (_, slot) => {
@@ -184,7 +185,7 @@ export class Battle {
     const hits: Shot[] = [];
     for (const fighter of this.fighters) {
       if (fighter.hp <= 0) continue;
-      fighter.target = selectTarget(fighter, this.fighters, fighter.command.aim);
+      fighter.target = selectTarget(this.collisions, fighter, this.fighters, fighter.command.aim);
       if (fighter.target && fighter.command.attack && this.tick >= fighter.attackAt) {
         fighter.attackAt = this.tick + fighter.profile.attackTicks;
         hits.push({

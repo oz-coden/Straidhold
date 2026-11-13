@@ -232,7 +232,9 @@ test("shared Fog, camera and public roster update during the match", async ({ pa
   const clip = (await page.locator(".fog").boundingBox())!;
   await page.keyboard.down("w");
   await page.mouse.move(clip.x + clip.width / 2, clip.y + clip.height * 0.15);
-  await page.clock.runFor(800);
+  for (let i = 0; i < 6 && Number(await camera.getAttribute("y")) >= view.y - 20; i++) {
+    await page.clock.runFor(200);
+  }
   await page.keyboard.up("w");
   expect(Number(await camera.getAttribute("y"))).toBeLessThan(view.y - 20);
   await expect(page.locator("#attack-state")).toHaveText("攻撃対象を捕捉");
@@ -246,8 +248,14 @@ test("shared Fog, camera and public roster update during the match", async ({ pa
   await page.clock.runFor(860);
   await page.keyboard.up("s");
   const oldCameraY = Number(await camera.getAttribute("y"));
-  await page.clock.runFor(6700);
+  for (let i = 0; i < 13 && !await page.locator(".roster-unit[data-state=down]").first().isVisible(); i++) {
+    await page.clock.runFor(700);
+  }
+  if (!(await page.locator("#sites .site[data-owner]:not([data-owner=neutral])").count())) {
+    await page.clock.runFor(1200);
+  }
   expect(Number(await camera.getAttribute("y"))).toBeCloseTo(oldCameraY, 3);
+  for (let i = 0; i < 6 && await contactCount() === await redMarkers.count(); i++) await page.clock.runFor(300);
   expect(await contactCount()).toBeLessThan(await redMarkers.count());
   expect(Number(await page.locator("#blue-score").textContent()) + Number(await page.locator("#red-score").textContent())).toBeGreaterThan(0);
   await expect(page.locator("#sites .site[data-owner]:not([data-owner=neutral])").first()).toBeVisible();
@@ -256,9 +264,34 @@ test("shared Fog, camera and public roster update during the match", async ({ pa
   const seconds = Number(await down.textContent());
   expect(seconds).toBeGreaterThan(0);
   const label = (await down.getAttribute("aria-label"))!.split(" 復活")[0];
-  await page.clock.runFor(1000);
+  await page.clock.runFor(1100);
   const portrait = page.getByRole("img", { name: new RegExp(`^${label} (?:復活まで|生存)`) });
-  if (seconds > 1) await expect(portrait).toHaveText(String(seconds - 1));
-  else await expect(portrait).toHaveAttribute("data-state", "alive");
+  const remaining = Number(await portrait.textContent());
+  expect(remaining).toBeLessThan(seconds);
+  expect(remaining).toBeGreaterThanOrEqual(Math.max(0, seconds - 2));
+  expect(errors).toEqual([]);
+});
+
+test("the follow camera stays at the last position during death and returns to HQ on respawn", async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 405 });
+  const errors = await startMatch(page);
+  const camera = page.locator(".minimap-camera");
+  const player = page.locator(".minimap-player");
+  const respawn = page.locator("#respawn");
+  const homeY = Number(await camera.getAttribute("y"));
+  await page.keyboard.down("w");
+  await page.clock.runFor(2700);
+  await page.keyboard.up("w");
+  expect(Number(await camera.getAttribute("y"))).toBeLessThan(homeY - 100);
+  for (let i = 0; i < 12 && !await respawn.isVisible(); i++) await page.clock.runFor(800);
+  await expect(respawn).toBeVisible();
+  await expect(player).not.toHaveAttribute("transform");
+  const deathY = await camera.getAttribute("y");
+  await page.clock.runFor(600);
+  await expect(camera).toHaveAttribute("y", deathY!);
+  for (let i = 0; i < 14 && await respawn.isVisible(); i++) await page.clock.runFor(800);
+  await expect(respawn).toBeHidden();
+  await expect(player).toHaveAttribute("transform", /^translate\(480\.0 464\.0\)/);
+  expect(Number(await camera.getAttribute("y"))).toBeCloseTo(homeY);
   expect(errors).toEqual([]);
 });

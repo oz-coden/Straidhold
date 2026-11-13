@@ -5,7 +5,11 @@ import type { TeamVision } from "../rules/vision.ts";
 
 const namespace = "http://www.w3.org/2000/svg";
 const colors = { blue: "#75ddff", red: "#ff948a", neutral: "#b8c8d1" };
-const tiles = ["#1b3040", "#1b3040", "#304b60", "#5b6e7e"];
+const tiles = [
+  { fill: "#1b3040", matches: (id: number) => id < 2 },
+  { fill: "#304b60", matches: (id: number) => id === 2 },
+  { fill: "#5b6e7e", matches: (id: number) => id === 3 },
+];
 function svg<K extends keyof SVGElementTagNameMap>(name: K, attributes: Record<string, string | number> = {}) {
   const node = document.createElementNS(namespace, name);
   for (const [attribute, value] of Object.entries(attributes)) node.setAttribute(attribute, String(value));
@@ -18,11 +22,10 @@ export function createMinimap(game: Game<"briefing" | "match">, host: HTMLElemen
   panel.setAttribute("aria-label", "ミニマップ");
   const geometry = { viewBox: `0 0 ${WIDTH} ${HEIGHT}`, "aria-hidden": "true" };
   const map = svg("svg", geometry);
-  for (const [i, fill] of tiles.entries()) {
-    if (i === 1) continue;
+  for (const { fill, matches } of tiles) {
     const cells: string[] = [];
     terrain.forEach((id, x, y) => {
-      if (id === i || (id === 1 && i === 0)) cells.push(`M${x * TILE},${y * TILE}h${TILE}v${TILE}h-${TILE}z`);
+      if (matches(id)) cells.push(`M${x * TILE},${y * TILE}h${TILE}v${TILE}h-${TILE}z`);
     });
     map.append(svg("path", { fill, d: cells.join("") }));
   }

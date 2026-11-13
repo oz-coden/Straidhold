@@ -133,19 +133,14 @@ game.scene("match", (context) => {
   let width = 0;
   let height = 0;
   let focus: Point = { x: player.position.x, y: player.position.y };
-  let wasAlive = true;
   let visionTick = -1;
   context.onUpdate(() => {
     if (visionTick === battle.tick) return;
     visionTick = battle.tick;
     vision.update();
-    if (player.hp > 0) {
-      focus = player.position;
-      track?.(focus);
-    } else if (wasAlive) {
-      focus = { x: player.position.x, y: player.position.y };
-    }
-    wasAlive = player.hp > 0;
+    if (player.hp > 0) focus = player.position;
+    // A defeated fighter stays at the defeat position until the respawn step.
+    track?.(focus);
   });
   context.onActivate(() => {
     vision.update();

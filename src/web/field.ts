@@ -72,9 +72,8 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
 
   scene.onActivate(() => labels.append(...elements));
 
-  function project(node: HTMLElement, point: Point) {
+  function project(node: HTMLElement, point: Point, clip: (typeof game.view)["clip"]) {
     const screen = game.worldToScreen({ space: "world", ...point });
-    const clip = game.view.clip;
     node.hidden = screen.x < clip.x || screen.y < clip.y || screen.x >= clip.x + clip.width || screen.y >= clip.y + clip.height;
     if (node.hidden) return;
     node.style.left = `${screen.x}px`;
@@ -86,8 +85,8 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
     const view = game.view;
     if (view === previousView) return;
     previousView = view;
-    for (const { point, label } of hqs) project(label, point);
-    for (const { site, label } of sites) project(label, site);
+    for (const { point, label } of hqs) project(label, point, view.clip);
+    for (const { site, label } of sites) project(label, site, view.clip);
   }
 
   function paint() {

@@ -1,10 +1,11 @@
 import type { CollisionWorld, Point } from "@simpludify/core";
-import { castTerrain, distance, wallCorners, type Team } from "./arena.ts";
+import { bushAt, castTerrain, distance, trainingArena, type Arena, type Team } from "./arena.ts";
 
 export interface VisionUnit {
   readonly team: Team;
   readonly hp: number;
   readonly position: Point;
+  readonly revealedUntil?: number;
   readonly profile: { readonly vision: number };
 }
 
@@ -13,14 +14,23 @@ export function seesPoint(collisions: CollisionWorld, observer: VisionUnit, poin
     && !castTerrain(collisions, observer.position, point);
 }
 
+/** Terrain can be visible while an occupant remains concealed. */
+export function seesUnit(collisions: CollisionWorld, arena: Arena, tick: number, observer: VisionUnit, target: VisionUnit): boolean {
+  if (target.hp <= 0 || observer.hp <= 0) return false;
+  const bush = bushAt(arena, target.position);
+  if (bush && (target.revealedUntil ?? 0) <= tick && bushAt(arena, observer.position) !== bush
+    && distance(observer.position, target.position) > 48) return false;
+  return seesPoint(collisions, observer, target.position);
+}
+
 const TAU = 2 * Math.PI;
 const circleAngles = Array.from({ length: 96 }, (_, i) => i * TAU / 96 - Math.PI);
 const cornerOffset = 0.0001;
 
 /** Approximate the circular arc while explicitly tracing both sides of each wall corner. */
-export function sightOutline(collisions: CollisionWorld, origin: Point, radius: number): readonly Point[] {
+export function sightOutline(collisions: CollisionWorld, origin: Point, radius: number, arena = trainingArena): readonly Point[] {
   const angles = [...circleAngles];
-  for (const corner of wallCorners) {
+  for (const corner of arena.wallCorners) {
     const dx = corner.x - origin.x;
     const dy = corner.y - origin.y;
     if (dx * dx + dy * dy > radius * radius) continue;
@@ -48,11 +58,13 @@ export class TeamVision<T extends VisionUnit> {
   private readonly visible = new Set<T>();
   private revision = 0;
 
+  private readonly arena: Arena;
   private readonly collisions: CollisionWorld;
   private readonly team: Team;
   private readonly units: readonly T[];
 
-  constructor(collisions: CollisionWorld, team: Team, units: readonly T[]) {
+  constructor(collisions: CollisionWorld, team: Team, units: readonly T[], arena = trainingArena) {
+    this.arena = arena;
     this.collisions = collisions;
     this.team = team;
     this.units = units;
@@ -60,7 +72,7 @@ export class TeamVision<T extends VisionUnit> {
       .map((unit) => ({ unit, x: 0, y: 0, radius: 0, outline: null }));
   }
 
-  update(): void {
+  update(tick = 0): void {
     for (const source of this.sources) {
       const { unit } = source;
       const { x, y } = unit.position;
@@ -74,7 +86,7 @@ export class TeamVision<T extends VisionUnit> {
     }
     this.visible.clear();
     for (const unit of this.units) {
-      if (unit.hp > 0 && (unit.team === this.team || this.sees(unit.position))) this.visible.add(unit);
+      if (unit.hp > 0 && (unit.team === this.team || this.sources.some(({ unit: observer }) => seesUnit(this.collisions, this.arena, tick, observer, unit)))) this.visible.add(unit);
     }
   }
 
@@ -92,7 +104,7 @@ export class TeamVision<T extends VisionUnit> {
   visitOutlines(visit: (outline: readonly Point[]) => void): void {
     for (const source of this.sources) {
       if (source.radius === 0) continue;
-      source.outline ??= sightOutline(this.collisions, source, source.radius);
+      source.outline ??= sightOutline(this.collisions, source, source.radius, this.arena);
       visit(source.outline);
     }
   }

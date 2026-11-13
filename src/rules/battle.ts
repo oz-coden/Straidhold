@@ -3,9 +3,10 @@ import {
   Component, defineComponent, Motion, Transform,
   type ComponentType, type Point, type Scene,
 } from "@simpludify/core";
-import { castTerrain, distance, HQ, placeArena, RADIUS, SITES, spawn, TEAMS, toward, type Team } from "./arena.ts";
+import { distance, placeArena, RADIUS, spawn, TEAMS, toward, trainingArena, type Arena, type Team } from "./arena.ts";
 import { IDLE, validate, ZERO, type Command } from "./command.ts";
-import { seesPoint } from "./vision.ts";
+import { seesUnit } from "./vision.ts";
+import { Supply, type SupplyMovement } from "./supply.ts";
 
 export const HZ = 60;
 export const STEP = 1 / HZ;
@@ -52,6 +53,8 @@ export interface Fighter {
   shield: number;
   downUntil: number;
   hitAt: number;
+  revealedUntil: number;
+  readonly supplyMovement: SupplyMovement;
   attackAt: number;
   command: Command;
   facing: Point;
@@ -87,11 +90,11 @@ class ReadCommands extends Component {
   override update() { this.read(); }
 }
 
-export function canSee(collisions: CollisionWorld, observer: Fighter, target: Fighter): boolean {
-  return target.hp > 0 && seesPoint(collisions, observer, target.position);
+export function canSee(collisions: CollisionWorld, observer: Fighter, target: Fighter, arena = trainingArena, tick = 0): boolean {
+  return seesUnit(collisions, arena, tick, observer, target);
 }
 
-export function selectTarget(collisions: CollisionWorld, fighter: Fighter, fighters: readonly Fighter[], aim: Point | null): Fighter | undefined {
+export function selectTarget(collisions: CollisionWorld, fighter: Fighter, fighters: readonly Fighter[], aim: Point | null, arena = trainingArena, tick = 0): Fighter | undefined {
   let best: Fighter | undefined;
   let bestScore = -Infinity;
   for (const target of fighters) {
@@ -101,7 +104,7 @@ export function selectTarget(collisions: CollisionWorld, fighter: Fighter, fight
     if (range > Math.min(fighter.profile.range, fighter.profile.vision)) continue;
     const alignment = aim && range > 0 ? (aim.x * offset.x + aim.y * offset.y) / range : 1;
     if (aim && alignment < (target === fighter.target ? 0.48 : 0.57)) continue;
-    if (castTerrain(collisions, fighter.position, target.position)) continue;
+    if (!canSee(collisions, fighter, target, arena, tick)) continue;
     const score = 1.45 * alignment - range / fighter.profile.range + (target === fighter.target ? 0.23 : 0);
     if (score > bestScore || (score === bestScore && best && target.id < best.id)) {
       best = target;
@@ -112,9 +115,11 @@ export function selectTarget(collisions: CollisionWorld, fighter: Fighter, fight
 }
 
 export class Battle {
+  readonly arena: Arena;
   readonly collisions: CollisionWorld;
   readonly fighters: readonly Fighter[];
-  readonly sites: Site[] = SITES.map((site) => ({ ...site, owner: null, device: null }));
+  readonly sites: Site[];
+  readonly supply: Supply;
   readonly scores = { blue: 0, red: 0 };
   readonly kills = { blue: 0, red: 0 };
   readonly shots: Shot[] = [];
@@ -124,25 +129,28 @@ export class Battle {
 
   private readonly source: CommandSource;
 
-  constructor(scene: Scene, atlas: string, seconds: number, source: CommandSource) {
+  constructor(scene: Scene, atlas: string, seconds: number, source: CommandSource, arena: Arena = trainingArena) {
     this.source = source;
+    this.arena = arena;
     if (!Number.isInteger(seconds) || seconds < 1 || seconds > ROUND_SECONDS) throw new RangeError("Invalid round duration");
     this.duration = seconds * HZ;
     this.collisions = new CollisionWorld(scene);
-    placeArena(scene, atlas);
+    placeArena(scene, atlas, arena);
+    this.sites = arena.sites.map((site) => ({ ...site, owner: null, device: null }));
+    this.supply = new Supply(arena);
     scene.add(new Actor({ id: "commands" })).add(new ReadCommands(() => this.read()));
     this.fighters = TEAMS.flatMap((team) => Array.from({ length: 5 }, (_, slot) => {
       const id = `${team}-${slot}`;
       const actor = scene.add(new Actor({ id }));
-      const position = actor.add(new Transform(spawn(team, slot)));
+      const position = actor.add(new Transform(spawn(team, slot, arena)));
       const motion = actor.add(new Motion({ speed: recruit.speed }));
       actor.add(new CollisionBody());
       // Units share space with each other. Only the terrain layer blocks movement.
       actor.add(new Collider({ shape: CollisionShape.Circle, radius: RADIUS, response: CollisionResponse.Solid, layer: 2, mask: 1 }));
       return {
         id, team, slot, actor, position, motion, profile: recruit,
-        hp: recruit.hp, shield: recruit.shield, downUntil: 0, hitAt: -Infinity, attackAt: 0,
-        command: IDLE, facing: { x: 0, y: team === "blue" ? -1 : 1 },
+        hp: recruit.hp, shield: recruit.shield, downUntil: 0, hitAt: -Infinity, attackAt: 0, revealedUntil: 0, supplyMovement: { boost: 0, slow: 0 },
+        command: IDLE, facing: { x: Math.sign(arena.hq[team === "blue" ? "red" : "blue"].x - arena.hq[team].x), y: Math.sign(arena.hq[team === "blue" ? "red" : "blue"].y - arena.hq[team].y) },
       };
     }));
     scene.onUpdate(() => this.resolve());
@@ -156,11 +164,13 @@ export class Battle {
     // Read every source against the same state before applying any commands.
     for (const fighter of this.fighters) {
       if (fighter.hp === 0 && this.tick >= fighter.downUntil) {
-        Object.assign(fighter.position, spawn(fighter.team, fighter.slot));
+        Object.assign(fighter.position, spawn(fighter.team, fighter.slot, this.arena));
         fighter.hp = fighter.profile.hp;
         fighter.shield = fighter.profile.shield;
         fighter.hitAt = -Infinity;
         fighter.attackAt = this.tick;
+        fighter.revealedUntil = 0;
+        fighter.supplyMovement.boost = fighter.supplyMovement.slow = 0;
         fighter.target = undefined;
         fighter.actor.enabled = true;
       }
@@ -173,6 +183,11 @@ export class Battle {
       const command = commands[i];
       fighter.command = command;
       Object.assign(fighter.motion.direction, command.move);
+      if (fighter.hp > 0 && this.arena.lanes.length) {
+        const multiplier = this.supply.speed(fighter.supplyMovement, fighter.team, fighter.position,
+          (this.tick - fighter.hitAt) / HZ, command.move !== ZERO, STEP);
+        fighter.motion.speed = fighter.profile.speed * multiplier;
+      }
       if (command.aim) fighter.facing = command.aim;
       else if (command.move !== ZERO) fighter.facing = command.move;
     });
@@ -185,7 +200,7 @@ export class Battle {
     const hits: Shot[] = [];
     for (const fighter of this.fighters) {
       if (fighter.hp <= 0) continue;
-      fighter.target = selectTarget(this.collisions, fighter, this.fighters, fighter.command.aim);
+      fighter.target = selectTarget(this.collisions, fighter, this.fighters, fighter.command.aim, this.arena, this.tick);
       if (fighter.target && fighter.command.attack && this.tick >= fighter.attackAt) {
         fighter.attackAt = this.tick + fighter.profile.attackTicks;
         hits.push({
@@ -195,7 +210,11 @@ export class Battle {
         });
       }
     }
-    for (const hit of hits) this.damage(hit.to, hit.from);
+    // Reveal after collecting all attacks to preserve simultaneous decisions.
+    for (const hit of hits) {
+      hit.from.revealedUntil = this.tick + 1.5 * HZ;
+      this.damage(hit.to, hit.from);
+    }
     this.shots.push(...hits);
 
     for (const fighter of this.fighters) {
@@ -204,11 +223,17 @@ export class Battle {
       if (quiet > fighter.profile.shieldDelay) {
         fighter.shield = Math.min(fighter.profile.shield, fighter.shield + fighter.profile.shieldPerSecond / HZ);
       }
-      if (quiet > fighter.profile.shieldDelay && distance(fighter.position, HQ[fighter.team]) <= 84) {
+      if (quiet > fighter.profile.shieldDelay && distance(fighter.position, this.arena.hq[fighter.team]) <= 84) {
         fighter.hp = Math.min(fighter.profile.hp, fighter.hp + fighter.profile.hqHealPerSecond / HZ);
       }
     }
-    for (const site of this.sites) this.updateSite(site);
+    let changed = false;
+    for (const site of this.sites) {
+      const previous = site.owner;
+      this.updateSite(site);
+      changed ||= previous !== site.owner;
+    }
+    if (changed && this.arena.lanes.length) this.supply.rebuild(this.sites);
     if (this.tick % HZ === 0) {
       for (const { owner } of this.sites) if (owner) this.scores[owner]++;
     }

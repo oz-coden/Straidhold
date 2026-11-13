@@ -39,12 +39,17 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
   let supplyRevision = -1;
   const hqs = TEAMS.map((team) => {
     const point = arena.hq[team];
-    shape(scene, point, 214, 62, colors[team], -7).render.opacity = 0.24;
-    shape(scene, point, 212, 2, colors[team], -6).transform.y += team === "blue" ? 30 : -30;
+    if (arena.lanes.length) {
+      shape(scene, point, 66, 178, colors[team], -7).render.opacity = 0.24;
+      shape(scene, point, 2, 176, colors[team], -6).transform.x += team === "blue" ? -33 : 33;
+    } else {
+      shape(scene, point, 214, 62, colors[team], -7).render.opacity = 0.24;
+      shape(scene, point, 212, 2, colors[team], -6).transform.y += team === "blue" ? 30 : -30;
+    }
     shape(scene, point, 63, 57, colors[team], -6, Shape.Hexagon).render.opacity = 0.55;
     const label = addLabel(team === "blue" ? "青本部" : "赤本部", team);
     elements.push(label);
-    return { point: { x: point.x, y: point.y + (team === "blue" ? 42 : -42) }, label };
+    return { point: { x: point.x, y: point.y + (arena.lanes.length ? -100 : team === "blue" ? 42 : -42) }, label };
   });
   const sites = arena.sites.map((site) => {
     const outer = shape(scene, site, 108, 108, colors.neutral, -6, Shape.Circle);

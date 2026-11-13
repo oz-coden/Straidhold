@@ -59,8 +59,7 @@ export function createAI(strategies: Partial<Record<Team, Strategy>> = {}, seed 
         site = fronts.sort((a, b) => distance(a, position) - distance(b, position))[0] ?? site;
       }
     } else {
-      const lanes = [0, 0, 1, 2, 2];
-      site = sites[lanes[slot]];
+      site = sites[Math.floor((slot + 0.5) * sites.length / 5)];
       if (slot % 2 === 1 && site.owner === team && !site.device) {
         site = sites.filter((candidate) => candidate.owner !== team)
           .sort((a, b) => distance(a, position) - distance(b, position))[0] ?? site;

@@ -9,7 +9,7 @@ interface MapLayout {
   description: string;
   size: Coordinate;
   hq: Coordinate;
-  home: Readonly<Record<string, Coordinate>>;
+  home: Readonly<Record<string, { mirror: string; at: Coordinate }>>;
   center: Readonly<Record<string, Coordinate>>;
   links: readonly Link[];
   crossLinks?: readonly Link[];
@@ -23,9 +23,9 @@ function defineMap(layout: MapLayout): Arena {
   const [cols, rows] = layout.size;
   const point = ([x, y]: Coordinate, mirror = false): Point => ({ x: (mirror ? cols - x : x) * TILE, y: y * TILE });
   const hq = { blue: point(layout.hq), red: point(layout.hq, true) };
-  const homeId = (id: string, mirror: boolean) => mirror ? ({ D: "F", E: "G" } as Record<string, string>)[id] : id;
+  const homeId = (id: string, mirror: boolean) => mirror ? layout.home[id].mirror : id;
   const flankSites = (mirror: boolean) => Object.entries(layout.home)
-    .map(([id, coordinate]) => ({ id: homeId(id, mirror), ...point(coordinate, mirror) }));
+    .map(([id, { at }]) => ({ id: homeId(id, mirror), ...point(at, mirror) }));
   const sites = [...flankSites(false), ...Object.entries(layout.center).map(([id, coordinate]) => ({ id, ...point(coordinate) })), ...flankSites(true)];
   const nodes = new Map<string, Point>(Object.entries(hq));
   for (const site of sites) nodes.set(site.id, site);
@@ -97,7 +97,7 @@ const forkLinks = [["hq", "D"], ["D", "A"], ["D", "C"]] as const;
 export const tacticalMaps = [
   defineMap({
     id: "twin-forks", name: "両側分岐", description: "上下の前進拠点から中央へ。中央を横断する近道はジャングル。",
-    size: [210, 82], hq: [8, 41], home: { D: [47, 24], E: [47, 58] },
+    size: [210, 82], hq: [8, 41], home: { D: { mirror: "F", at: [47, 24] }, E: { mirror: "G", at: [47, 58] } },
     center: { A: [105, 24], B: [105, 41], C: [105, 58] }, links: branchLinks,
     objectives: ["A", "B", "C"], flanks: [[47, 41], [79, 41]],
     cover: [rect(26, 34, 8, 4), rect(51, 34, 7, 4), rect(68, 43, 6, 4), rect(88, 49, 6, 4), rect(73, 13, 8, 3), rect(80, 66, 5, 4)],
@@ -105,15 +105,15 @@ export const tacticalMaps = [
   }),
   defineMap({
     id: "three-crossings", name: "中央三拠点", description: "上下の広い外周と中央の横断路から、離れた三拠点を攻める。",
-    size: [216, 88], hq: [8, 44], home: { D: [48, 30], E: [48, 58] },
+    size: [216, 88], hq: [8, 44], home: { D: { mirror: "F", at: [48, 30] }, E: { mirror: "G", at: [48, 58] } },
     center: { A: [108, 15], B: [108, 44], C: [108, 73] }, links: branchLinks,
     objectives: ["A", "B", "C"], flanks: [[35, 18], [70, 12]],
     cover: [rect(26, 41, 8, 4), rect(43, 19, 7, 4), rect(58, 42, 6, 4), rect(68, 29, 8, 4), rect(68, 55, 8, 4), rect(88, 27, 6, 5), rect(88, 56, 6, 5)],
-    bushes: [rect(41, 43, 5, 3), rect(66, 11, 5, 4), rect(83, 34, 5, 3), rect(94, 67, 5, 3)],
+    bushes: [rect(41, 43, 5, 3), rect(66, 11, 5, 4), rect(83, 33, 5, 3), rect(94, 65, 5, 3)],
   }),
   defineMap({
     id: "central-line", name: "中央防衛線", description: "単一の前進拠点が三つの中央拠点を支える。前進拠点の確保が重要。",
-    size: [208, 84], hq: [8, 42], home: { D: [52, 42] },
+    size: [208, 84], hq: [8, 42], home: { D: { mirror: "F", at: [52, 42] } },
     center: { A: [104, 18], B: [104, 42], C: [104, 66] },
     links: [...forkLinks, ["D", "B"]], objectives: ["A", "B", "C"], flanks: [[45, 63], [79, 72]],
     cover: [rect(28, 26, 9, 4), rect(30, 53, 8, 4), rect(59, 16, 7, 4), rect(67, 36, 9, 3), rect(71, 47, 8, 3), rect(89, 29, 6, 5), rect(91, 51, 6, 4)],
@@ -121,7 +121,7 @@ export const tacticalMaps = [
   }),
   defineMap({
     id: "split-merge", name: "分岐と合流", description: "前進拠点の先で上下に分岐。拠点のない中央や外周から迂回できる。",
-    size: [202, 78], hq: [8, 39], home: { D: [51, 39] },
+    size: [202, 78], hq: [8, 39], home: { D: { mirror: "F", at: [51, 39] } },
     center: { A: [101, 22], C: [101, 56] }, links: forkLinks,
     objectives: ["A", "C"], flanks: [[53, 47], [77, 40]],
     cover: [rect(28, 24, 8, 4), rect(30, 52, 8, 4), rect(60, 22, 6, 4), rect(65, 36, 7, 4), rect(72, 50, 6, 4), rect(91, 34, 7, 3), rect(89, 64, 8, 4)],
@@ -129,7 +129,7 @@ export const tacticalMaps = [
   }),
   defineMap({
     id: "cross-supply", name: "交差補給路", description: "交差点Bで上下の補給路を結ぶ。Bを奪えば斜めの連絡を遮断できる。",
-    size: [214, 90], hq: [8, 45], home: { D: [51, 24], E: [51, 66] },
+    size: [214, 90], hq: [8, 45], home: { D: { mirror: "F", at: [51, 24] }, E: { mirror: "G", at: [51, 66] } },
     center: { A: [107, 24], B: [107, 45], C: [107, 66] },
     links: branchLinks, crossLinks: [["A", "B"], ["B", "C"]],
     objectives: ["A", "B", "C"], flanks: [[45, 44], [77, 45]],

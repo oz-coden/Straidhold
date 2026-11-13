@@ -317,7 +317,7 @@ test("all five tactical maps launch with their own layout and allow changing map
   await page.goto("/?round=5");
   await expect(page.locator("#start")).toBeEnabled();
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
-  const picker = page.getByLabel("戦場", { exact: true });
+  const picker = page.getByRole("combobox", { name: "戦場", exact: true });
   const panel = page.locator(".minimap");
   await expect(picker).toHaveValue(layouts[0][0]);
   await expect(picker.locator("option")).toHaveCount(6);
@@ -367,4 +367,37 @@ test("large-map capture connects a supply lane in the HUD and minimap", async ({
   await expect(page.locator('.minimap line[stroke="#75ddff"]').first()).toBeAttached();
   expect(Number(await page.locator("#blue-score").textContent())).toBeGreaterThan(0);
   expect(errors).toEqual([]);
+});
+
+test.describe("tactical map on a small touch screen", () => {
+  test.use({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
+
+  test("keeps the map picker and seven objectives usable during multi-touch movement", async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/?map=cross-supply&round=20");
+    await expect(page.getByRole("combobox", { name: "戦場", exact: true })).toBeInViewport();
+    await expect(page.locator("#start")).toBeEnabled();
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
+    await page.locator("#start").click({ force: true });
+    await expect(page.locator("#overlay")).toBeHidden();
+    const markers = page.locator("#sites .site");
+    await expect(markers).toHaveCount(7);
+    await expect(markers.last()).toBeInViewport();
+    await page.clock.runFor(100);
+    const map = (await page.locator(".minimap").boundingBox())!;
+    const stick = (await page.locator("#stick").boundingBox())!;
+    const fire = (await page.locator("#touch-fire").boundingBox())!;
+    expect(fire.y).toBeGreaterThan(map.y + map.height);
+    const cdp = await page.context().newCDPSession(page);
+    const stickPoint = { id: 1, x: stick.x + stick.width / 2, y: stick.y + stick.height / 2 };
+    const firePoint = { id: 2, x: fire.x + fire.width / 2, y: fire.y + fire.height / 2 };
+    const player = page.locator(".minimap-player");
+    const before = await player.getAttribute("transform");
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [stickPoint, firePoint] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...stickPoint, x: stickPoint.x + 42 }, { ...firePoint, y: firePoint.y - 21 }] });
+    await page.clock.runFor(350);
+    await expect(player).not.toHaveAttribute("transform", before!);
+    await expect(page.locator("#touch-fire")).toHaveAttribute("data-active", "true");
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  });
 });

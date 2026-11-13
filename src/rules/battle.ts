@@ -5,6 +5,7 @@ import {
 } from "@simpludify/core";
 import { clearLine, distance, HQ, placeArena, RADIUS, SITES, spawn, TEAMS, toward, type Team } from "./arena.ts";
 import { IDLE, validate, ZERO, type Command } from "./command.ts";
+import { seesPoint } from "./vision.ts";
 
 export const HZ = 60;
 export const STEP = 1 / HZ;
@@ -69,6 +70,8 @@ export interface Shot {
   readonly tick: number;
   readonly from: Fighter;
   readonly to: Fighter;
+  readonly origin: Point;
+  readonly impact: Point;
 }
 
 type CommandSource = (fighter: Fighter, battle: Battle) => Command;
@@ -85,9 +88,7 @@ class ReadCommands extends Component {
 }
 
 export function canSee(observer: Fighter, target: Fighter): boolean {
-  return observer.hp > 0 && target.hp > 0
-    && distance(observer.position, target.position) <= observer.profile.vision
-    && clearLine(observer.position, target.position);
+  return target.hp > 0 && seesPoint(observer, target.position);
 }
 
 export function selectTarget(fighter: Fighter, fighters: readonly Fighter[], aim: Point | null): Fighter | undefined {
@@ -186,7 +187,11 @@ export class Battle {
       fighter.target = selectTarget(fighter, this.fighters, fighter.command.aim);
       if (fighter.target && fighter.command.attack && this.tick >= fighter.attackAt) {
         fighter.attackAt = this.tick + fighter.profile.attackTicks;
-        hits.push({ tick: this.tick, from: fighter, to: fighter.target });
+        hits.push({
+          tick: this.tick, from: fighter, to: fighter.target,
+          origin: { x: fighter.position.x, y: fighter.position.y },
+          impact: { x: fighter.target.position.x, y: fighter.target.position.y },
+        });
       }
     }
     for (const hit of hits) this.damage(hit.to, hit.from);

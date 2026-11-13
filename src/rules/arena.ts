@@ -59,29 +59,49 @@ export function spawn(team: Team, slot: number): Point {
 export const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 export const toward = (from: Point, to: Point): Point => ({ x: to.x - from.x, y: to.y - from.y });
 
-// Clip the sight segment against each rectangular wall. The same query with
-// padding keeps an AI route clear for the entire collider, including corners.
-export function clearLine(from: Point, to: Point, padding = 0): boolean {
-  return walls.every(({ x, y, w, h }) => {
+const wallBounds = walls.map(({ x, y, w, h }) => ({
+  left: x * TILE, top: y * TILE, right: (x + w) * TILE, bottom: (y + h) * TILE,
+}));
+
+export const wallCorners: readonly Point[] = wallBounds.flatMap(({ left, top, right, bottom }) => [
+  { x: left, y: top }, { x: right, y: top }, { x: right, y: bottom }, { x: left, y: bottom },
+]);
+
+// Return the first solid intersection along a finite segment. Padding uses
+// the same geometry to test clearance for AI pathing.
+export function wallHit(from: Point, dx: number, dy: number, padding = 0): number | null {
+  let nearest = 1;
+  let hit = false;
+  for (const { left, top, right, bottom } of wallBounds) {
     let enter = 0;
-    let exit = 1;
-    const axes = [
-      [from.x, to.x - from.x, x * TILE - padding, (x + w) * TILE + padding],
-      [from.y, to.y - from.y, y * TILE - padding, (y + h) * TILE + padding],
-    ];
-    for (const [start, delta, min, max] of axes) {
-      if (delta === 0) {
-        if (start < min || start > max) return true;
-        continue;
-      }
-      const first = (min - start) / delta;
-      const last = (max - start) / delta;
-      enter = Math.max(enter, Math.min(first, last));
-      exit = Math.min(exit, Math.max(first, last));
-      if (enter > exit) return true;
+    let exit = nearest;
+    if (dx === 0) {
+      if (from.x < left - padding || from.x > right + padding) continue;
+    } else {
+      const a = (left - padding - from.x) / dx;
+      const b = (right + padding - from.x) / dx;
+      enter = Math.max(enter, Math.min(a, b));
+      exit = Math.min(exit, Math.max(a, b));
+      if (enter > exit) continue;
     }
-    return false;
-  });
+    if (dy === 0) {
+      if (from.y < top - padding || from.y > bottom + padding) continue;
+    } else {
+      const a = (top - padding - from.y) / dy;
+      const b = (bottom + padding - from.y) / dy;
+      enter = Math.max(enter, Math.min(a, b));
+      exit = Math.min(exit, Math.max(a, b));
+      if (enter > exit) continue;
+    }
+    nearest = enter;
+    hit = true;
+    if (nearest === 0) break;
+  }
+  return hit ? nearest : null;
+}
+
+export function clearLine(from: Point, to: Point, padding = 0): boolean {
+  return wallHit(from, to.x - from.x, to.y - from.y, padding) === null;
 }
 
 const cellOf = (p: Point) => Math.floor(p.y / TILE) * COLS + Math.floor(p.x / TILE);

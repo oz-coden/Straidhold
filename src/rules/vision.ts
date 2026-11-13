@@ -1,0 +1,99 @@
+import type { Point } from "@simpludify/core";
+import { clearLine, distance, wallCorners, wallHit, type Team } from "./arena.ts";
+
+export interface VisionUnit {
+  readonly team: Team;
+  readonly hp: number;
+  readonly position: Point;
+  readonly profile: { readonly vision: number };
+}
+
+export function seesPoint(observer: VisionUnit, point: Point): boolean {
+  return observer.hp > 0 && distance(observer.position, point) <= observer.profile.vision
+    && clearLine(observer.position, point);
+}
+
+const TAU = 2 * Math.PI;
+const circleAngles = Array.from({ length: 96 }, (_, i) => i * TAU / 96 - Math.PI);
+const cornerOffset = 0.0001;
+
+/** Approximate the circular arc while explicitly tracing both sides of each wall corner. */
+export function sightOutline(origin: Point, radius: number): readonly Point[] {
+  const angles = [...circleAngles];
+  for (const corner of wallCorners) {
+    const dx = corner.x - origin.x;
+    const dy = corner.y - origin.y;
+    if (dx * dx + dy * dy > radius * radius) continue;
+    const angle = Math.atan2(dy, dx);
+    angles.push(angle - cornerOffset, angle, angle + cornerOffset);
+  }
+  angles.sort((a, b) => a - b);
+  return angles.map((angle) => {
+    const dx = Math.cos(angle) * radius;
+    const dy = Math.sin(angle) * radius;
+    const fraction = wallHit(origin, dx, dy) ?? 1;
+    return { x: origin.x + dx * fraction, y: origin.y + dy * fraction };
+  });
+}
+
+interface Source<T> {
+  unit: T;
+  x: number;
+  y: number;
+  radius: number;
+  outline: readonly Point[] | null;
+}
+
+/** A team view of the resolved simulation step. Reuses storage across steps. */
+export class TeamVision<T extends VisionUnit> {
+  private readonly sources: Source<T>[];
+  private readonly visible = new Set<T>();
+  private revision = 0;
+
+  private readonly team: Team;
+  private readonly units: readonly T[];
+
+  constructor(team: Team, units: readonly T[]) {
+    this.team = team;
+    this.units = units;
+    this.sources = units.filter((unit) => unit.team === team)
+      .map((unit) => ({ unit, x: 0, y: 0, radius: 0, outline: null }));
+  }
+
+  update(): void {
+    for (const source of this.sources) {
+      const { unit } = source;
+      const { x, y } = unit.position;
+      const radius = unit.hp > 0 ? unit.profile.vision : 0;
+      if (source.x === x && source.y === y && source.radius === radius) continue;
+      source.x = x;
+      source.y = y;
+      source.radius = radius;
+      source.outline = null;
+      this.revision++;
+    }
+    this.visible.clear();
+    for (const unit of this.units) {
+      if (unit.hp > 0 && (unit.team === this.team || this.sees(unit.position))) this.visible.add(unit);
+    }
+  }
+
+  sees(point: Point): boolean {
+    return this.sources.some(({ unit }) => seesPoint(unit, point));
+  }
+
+  shows(unit: T): boolean {
+    return this.visible.has(unit);
+  }
+
+  get outlineRevision() { return this.revision; }
+
+  /** Geometry is generated lazily, once for both visual consumers, without affecting detection. */
+  visitOutlines(visit: (outline: readonly Point[]) => void): void {
+    for (const source of this.sources) {
+      if (source.radius === 0) continue;
+      source.outline ??= sightOutline(source, source.radius);
+      visit(source.outline);
+    }
+  }
+}

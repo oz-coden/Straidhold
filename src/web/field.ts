@@ -1,5 +1,5 @@
 import { Actor, Renderable, Shape, Transform, type Game, type Point, type Scene } from "@simpludify/web";
-import { distance, HQ, SITES, TEAMS, type Team } from "../rules/arena.ts";
+import { distance, TEAMS, trainingArena, type Team } from "../rules/arena.ts";
 import { ACTIVATE_TICKS, type Battle, type Fighter } from "../rules/battle.ts";
 
 import type { TeamVision } from "../rules/vision.ts";
@@ -29,8 +29,16 @@ function addLabel(label: string, team?: Team) {
 
 export function createField(game: Game<"briefing" | "match">, scene: Scene, labels: HTMLElement, battle?: Battle, player?: Fighter, vision?: TeamVision<Fighter>) {
   const elements: HTMLElement[] = [];
+  const arena = battle?.arena ?? trainingArena;
+  const supplyMarks = arena.lanes.map(({ a, b, length }) => {
+    const mark = shape(scene, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, length, 5, colors.neutral, -8);
+    mark.transform.rotation = Math.atan2(b.y - a.y, b.x - a.x);
+    mark.render.visible = false;
+    return mark;
+  });
+  let supplyRevision = -1;
   const hqs = TEAMS.map((team) => {
-    const point = HQ[team];
+    const point = arena.hq[team];
     shape(scene, point, 214, 62, colors[team], -7).render.opacity = 0.24;
     shape(scene, point, 212, 2, colors[team], -6).transform.y += team === "blue" ? 30 : -30;
     shape(scene, point, 63, 57, colors[team], -6, Shape.Hexagon).render.opacity = 0.55;
@@ -38,7 +46,7 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
     elements.push(label);
     return { point: { x: point.x, y: point.y + (team === "blue" ? 42 : -42) }, label };
   });
-  const sites = SITES.map((site) => {
+  const sites = arena.sites.map((site) => {
     const outer = shape(scene, site, 108, 108, colors.neutral, -6, Shape.Circle);
     outer.render.opacity = 0.29;
     shape(scene, site, 102, 102, 0x1b2e3d, -5, Shape.Circle).render.opacity = 0.83;
@@ -62,12 +70,12 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
     const shield = shape(scene, fighter.position, 28, 2.4, 0x65dfff, 8);
     return { fighter, body, core, heading, back, hp, shield };
   }) ?? [];
-  const playerRing = shape(scene, HQ.blue, 35, 35, white, 3, Shape.Circle);
-  const playerInset = shape(scene, HQ.blue, 30, 30, dark, 4, Shape.Circle);
-  const targetRing = shape(scene, HQ.blue, 33, 33, 0xffc887, 3, Shape.Hexagon);
-  const aimMarker = shape(scene, HQ.blue, 6, 7, white, 3, Shape.Triangle);
+  const playerRing = shape(scene, arena.hq.blue, 35, 35, white, 3, Shape.Circle);
+  const playerInset = shape(scene, arena.hq.blue, 30, 30, dark, 4, Shape.Circle);
+  const targetRing = shape(scene, arena.hq.blue, 33, 33, 0xffc887, 3, Shape.Hexagon);
+  const aimMarker = shape(scene, arena.hq.blue, 6, 7, white, 3, Shape.Triangle);
   for (const item of [playerRing, playerInset, targetRing, aimMarker]) item.render.visible = false;
-  const tracers = battle ? Array.from({ length: 10 }, () => shape(scene, HQ.blue, 1, 2.8, white, 2)) : [];
+  const tracers = battle ? Array.from({ length: 10 }, () => shape(scene, arena.hq.blue, 1, 2.8, white, 2)) : [];
   scene.onDispose(() => elements.forEach((element) => element.remove()));
 
   scene.onActivate(() => labels.append(...elements));
@@ -90,10 +98,22 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
   }
 
   function paint() {
-    sites.forEach(({ label, base, outer, device, progress }, i) => {
+    if (battle && supplyRevision !== battle.supply.revision) {
+      supplyRevision = battle.supply.revision;
+      supplyMarks.forEach(({ render }, i) => {
+        const owner = battle.supply.lanes[i];
+        render.visible = owner !== null;
+        if (owner) render.color = colors[owner];
+        render.opacity = 0.50;
+      });
+    }
+    sites.forEach(({ site, label, base, outer, device, progress }, i) => {
       const state = battle?.sites[i];
       const color = colors[state?.owner ?? "neutral"];
       label.dataset.team = state?.owner ?? "neutral";
+      const linked = state?.owner && battle?.supply.connected[state.owner].has(state.id);
+      const text = linked ? `${site.id} ⇆` : state?.owner && arena.lanes.length ? `${site.id} ×` : site.id;
+      if (label.textContent !== text) label.textContent = text;
       base.render.color = outer.render.color = color;
       outer.render.opacity = state?.owner ? 0.43 : 0.29;
       device.render.visible = progress.render.visible = !!state?.device;

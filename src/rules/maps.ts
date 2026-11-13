@@ -56,7 +56,7 @@ function defineMap(layout: MapLayout): Arena {
       bushCells[cell] = bush + 1;
       return 4;
     }
-    return laneCells[cell].length ? 2 : (x + y) % 2;
+    return laneCells[cell].length ? 2 : 5 + (x + y) % 2;
   });
 
   // All regular orders start at the team's HQ and follow a shortest graph

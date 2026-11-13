@@ -2,12 +2,13 @@ import { Aspect, Camera, Game, type Point } from "@simpludify/web";
 import "@simpludify/web/style.css";
 import "./style.css";
 import atlas from "./web/terrain.svg?url";
-import { distance, HEIGHT, placeArena, SITES, WIDTH } from "./rules/arena.ts";
+import { bushAt, distance, HEIGHT, WIDTH, type Arena } from "./rules/arena.ts";
+import { arenas } from "./rules/maps.ts";
 import { createAI } from "./rules/ai.ts";
 import { TeamVision } from "./rules/vision.ts";
 import { followCamera, matchViewport } from "./web/camera.ts";
 import { createFog } from "./web/fog.ts";
-import { createMinimap } from "./web/minimap.ts";
+import { createMinimap, mapPreview } from "./web/minimap.ts";
 import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
 import { createField } from "./web/field.ts";
@@ -44,22 +45,27 @@ const life = new AbortController();
 const touchView = {
   layer: get("touch-controls"), stick: get("stick"), knob: get("knob"), fire: get("touch-fire"), deploy: get("touch-deploy"),
 };
-const sites = SITES.map(({ id }) => {
-  const row = document.createElement("div");
-  row.className = "site";
-  const title = document.createElement("strong");
-  const state = document.createElement("span");
-  const progress = document.createElement("progress");
-  progress.max = ACTIVATE_TICKS;
-  progress.setAttribute("aria-label", `${id}拠点の起動進捗`);
-  progress.hidden = true;
-  title.className = "site-icon";
-  title.textContent = id;
-  state.textContent = "中立";
-  row.append(title, state, progress);
-  get("sites").append(row);
-  return { row, state, progress };
-});
+function siteHud(arena: Arena) {
+  const host = get("sites");
+  host.replaceChildren();
+  host.style.setProperty("--site-count", String(arena.sites.length));
+  return arena.sites.map(({ id }) => {
+    const row = document.createElement("div");
+    row.className = "site";
+    const title = document.createElement("strong");
+    const state = document.createElement("span");
+    const progress = document.createElement("progress");
+    progress.max = ACTIVATE_TICKS;
+    progress.setAttribute("aria-label", `${id}拠点の起動進捗`);
+    progress.hidden = true;
+    title.className = "site-icon";
+    title.textContent = id;
+    state.textContent = "中立";
+    row.append(title, state, progress);
+    host.append(row);
+    return { row, state, progress };
+  });
+}
 
 const display = (node: HTMLElement, value: string | number) => {
   const text = String(value);
@@ -82,7 +88,22 @@ function announceMode(mode: InputMode) {
   display(get("input-hint"), hints[mode]);
 }
 
-const param = new URLSearchParams(location.search).get("round");
+const query = new URLSearchParams(location.search);
+const selector = get<HTMLSelectElement>("map-select");
+for (const { id, name } of arenas) selector.add(new Option(name, id));
+let selected = arenas.find(({ id }) => id === query.get("map")) ?? arenas[0];
+selector.value = selected.id;
+function updateBriefing() {
+  get("map-preview").replaceChildren(mapPreview(selected));
+  display(get("map-description"), selected.description);
+}
+selector.addEventListener("change", () => {
+  selected = arenas.find(({ id }) => id === selector.value) ?? arenas[0];
+  updateBriefing();
+}, { signal: life.signal });
+updateBriefing();
+
+const param = query.get("round");
 const requested = Number(param);
 const seconds = param && /^\d{1,3}$/.test(param) && requested >= 5 && requested <= ROUND_SECONDS
   ? requested
@@ -105,28 +126,18 @@ const settings = settingsPanel(dialog, (next) => {
 }, life.signal);
 announceMode(settings.mode === "auto" ? initialInputMode() : settings.mode);
 
-game.scene("briefing", ({ scene }) => {
-  placeArena(scene, atlas);
-  const labels = createField(game, scene, get("map-labels"));
-  scene.onActivate(() => {
-    updateCameraLayout = () => {
-      const { width, height } = game.viewport;
-      game.camera.zoom = Math.min(width / WIDTH, height / HEIGHT);
-      game.camera.x = (WIDTH - width) / 2;
-      game.camera.y = (HEIGHT - height) / 2;
-    };
-    paintOverlay = labels;
-  });
-});
+game.scene("briefing", () => {});
 
 game.scene("match", (context) => {
+  const arena = selected;
+  const sites = siteHud(arena);
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
   const battle = new Battle(context.scene, atlas, seconds, (fighter, state) =>
-    fighter.id === "blue-2" ? input.sample(fighter.position) : ai(fighter, state));
+    fighter.id === "blue-2" ? input.sample(fighter.position) : ai(fighter, state), arena);
   const player = battle.fighters[2];
-  const vision = new TeamVision(battle.collisions, player.team, battle.fighters);
-  const fog = createFog(game, get("battlefield"), vision);
+  const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
+  const fog = createFog(game, get("battlefield"), vision, arena);
   const minimap = createMinimap(game, get("battlefield"), battle, player, vision, fog.mask);
   const roster = createRoster(get("roster"), battle, player);
   let track: ((point: Point) => void) | undefined;
@@ -137,18 +148,20 @@ game.scene("match", (context) => {
   context.onUpdate(() => {
     if (visionTick === battle.tick) return;
     visionTick = battle.tick;
-    vision.update();
+    vision.update(battle.tick);
     if (player.hp > 0) focus = player.position;
     // A defeated fighter stays at the defeat position until the respawn step.
     track?.(focus);
   });
   context.onActivate(() => {
-    vision.update();
+    vision.update(battle.tick);
     visionTick = battle.tick;
   });
   const labels = createField(game, context.scene, get("map-labels"), battle, player, vision);
   context.onActivate(() => {
     currentInput = input;
+    app.dataset.map = arena.id;
+    get("terrain-state").hidden = !arena.lanes.length;
     updateCameraLayout = () => {
       const nextWidth = game.element.clientWidth;
       const nextHeight = game.element.clientHeight;
@@ -156,7 +169,7 @@ game.scene("match", (context) => {
       width = nextWidth;
       height = nextHeight;
       const viewport = matchViewport(width, height);
-      track = followCamera(game.camera, viewport, player.profile.vision);
+      track = followCamera(game.camera, viewport, player.profile.vision, arena);
       track(focus);
       game.setViewport(viewport);
     };
@@ -201,15 +214,29 @@ game.scene("match", (context) => {
     deployState.dataset.ready = String(deploy);
     display(deployState, deploy ? `${availableSite.id}に装置を設置できる`
       : availableSite?.device ? `${availableSite.id}の装置が起動中` : "拠点に近づくと設置可能");
+    const terrain = get("terrain-state");
+    if (arena.lanes.length) {
+      const lane = battle.supply.laneAt(player.position);
+      const bush = bushAt(arena, player.position) !== 0;
+      const speed = Math.round(100 * player.motion.speed / player.profile.speed);
+      display(terrain, player.hp <= 0 ? "" : bush ? (battle.tick < player.revealedUntil ? "茂み · 攻撃で露出中" : "茂み · 隠蔽") : lane < 0 ? "ジャングル"
+        : speed === 100 ? "レーン" : `レーン · 速度 ${speed}%`);
+    }
     const attack = get("attack-state");
     const hasTarget = player.target && vision.shows(player.target);
     const fired = battle.shots.some(({ from }) => from === player);
     display(attack, player.hp <= 0 ? "攻撃不可" : fired ? "攻撃命中" : player.command.attack && !hasTarget ? "射程内に有効な対象なし"
       : battle.tick < player.attackAt ? "攻撃クールダウン" : hasTarget ? "攻撃対象を捕捉" : "攻撃待機");
     roster.paint();
-    battle.sites.forEach(({ owner, device }, i) => {
+    battle.sites.forEach(({ id, owner, device }, i) => {
       const { row, state, progress } = sites[i];
       row.dataset.owner = owner ?? "neutral";
+      const supply = owner && arena.lanes.length
+        ? battle.supply.connected[owner].has(id) ? "linked" : "cut" : "";
+      if (row.dataset.supply !== supply) {
+        row.dataset.supply = supply;
+        row.title = supply === "linked" ? "本部に接続" : supply === "cut" ? "補給が途絶" : "";
+      }
       display(state, device ? `${names[owner ?? "neutral"]} / ${names[device.team]}${device.contested ? " 係争" : " 起動"} ${Math.floor(100 * device.progress / ACTIVATE_TICKS)}%` : names[owner ?? "neutral"]);
       progress.hidden = !device;
       if (device) {

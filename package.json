@@ -1,13 +1,14 @@
 {
   "name": "straidhold",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/runtime-notices.mjs",
     "preview": "vite preview",
     "check": "tsc",
     "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "simulate": "node scripts/simulate.ts"
   },
   "repository": {
     "type": "git",

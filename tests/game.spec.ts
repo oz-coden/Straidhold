@@ -4,7 +4,7 @@ async function startMatch(page: Page, seconds = 22) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.clock.install();
-  await page.goto(`/?round=${seconds}`);
+  await page.goto(`/?map=training&round=${seconds}`);
   await expect(page.locator("#start")).toBeEnabled();
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
   await page.locator("#start").click({ force: true });
@@ -179,7 +179,7 @@ test("saved settings recover safely and leaving an active match releases its res
   await expect(dialog.locator('[name="opacity"]')).toHaveValue("25");
   await expect(dialog.locator('[name="deadZone"]')).toHaveValue("15");
 
-  await page.goto("/?stored=legacy");
+  await page.goto("/?map=training&stored=legacy");
   await page.locator("#open-settings").click();
   await expect(dialog.locator('[name="mode"]')).toHaveValue("auto");
   await expect(dialog.locator('[name="stick"]')).toHaveValue("floating");
@@ -299,5 +299,72 @@ test("the follow camera stays at the last position during death and returns to H
   await expect(player).toHaveAttribute("transform", /^translate\(480\.0 464\.0\)/);
   await expect(page.locator(".roster-player")).toHaveAttribute("data-state", "alive");
   expect(Number(await camera.getAttribute("y"))).toBeCloseTo(homeY);
+  expect(errors).toEqual([]);
+});
+
+test("all five tactical maps launch with their own layout and allow changing maps after a round", async ({ page }) => {
+  const layouts = [
+    ["twin-forks", 7, "0 0 6720 2624"],
+    ["three-crossings", 7, "0 0 6912 2816"],
+    ["central-line", 5, "0 0 6656 2688"],
+    ["split-merge", 4, "0 0 6464 2496"],
+    ["cross-supply", 7, "0 0 6848 2880"],
+  ] as const;
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setViewportSize({ width: 760, height: 430 });
+  await page.clock.install();
+  await page.goto("/?round=5");
+  await expect(page.locator("#start")).toBeEnabled();
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
+  const picker = page.getByLabel("戦場", { exact: true });
+  const panel = page.locator(".minimap");
+  await expect(picker).toHaveValue(layouts[0][0]);
+  await expect(picker.locator("option")).toHaveCount(6);
+  for (const [id, count, view] of layouts) {
+    await picker.selectOption(id);
+    await expect(page.locator("#map-preview svg")).toHaveAttribute("viewBox", view);
+    await page.locator("#start").click({ force: true });
+    await expect(page.locator("#overlay")).toBeHidden();
+    await expect(panel).toHaveCount(1);
+    await expect(panel).toHaveAttribute("data-map", id);
+    await expect(panel.locator("svg").first()).toHaveAttribute("viewBox", view);
+    await expect(page.locator("#sites .site")).toHaveCount(count);
+    await page.keyboard.down("d");
+    await page.clock.runFor(300);
+    await page.keyboard.up("d");
+    await expect(panel.locator(".minimap-player")).not.toHaveAttribute("transform", /^translate\(256\.0 /);
+    for (let i = 0; i < 4 && await page.locator("#overlay").isHidden(); i++) {
+      await page.clock.runFor(1700);
+    }
+    await expect(page.locator("#clock")).toHaveText("00:00");
+    await expect(picker).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});
+
+test("large-map capture connects a supply lane in the HUD and minimap", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setViewportSize({ width: 800, height: 450 });
+  await page.clock.install();
+  await page.goto("/?map=central-line&round=40");
+  await expect(page.locator("#start")).toBeEnabled();
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
+  await page.locator("#start").click({ force: true });
+  await expect(page.locator("#overlay")).toBeHidden();
+  await expect(page.locator(".minimap-unit[data-team=red][transform]")).toHaveCount(0);
+  const forwardSite = page.locator("#sites .site").filter({ has: page.getByText("D", { exact: true }) });
+  await page.keyboard.down("d");
+  await page.clock.runFor(9200);
+  await page.keyboard.up("d");
+  await expect(forwardSite).toContainText(/青 起動|青/);
+  for (let i = 0; i < 5 && await forwardSite.getAttribute("data-supply") !== "linked"; i++) {
+    await page.clock.runFor(1300);
+  }
+  await expect(forwardSite).toHaveAttribute("data-owner", "blue");
+  await expect(forwardSite).toHaveAttribute("data-supply", "linked");
+  await expect(page.locator('.minimap line[stroke="#75ddff"]').first()).toBeAttached();
+  expect(Number(await page.locator("#blue-score").textContent())).toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });

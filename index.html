@@ -9,7 +9,7 @@
   <body>
     <main id="app">
       <header class="match-header">
-        <div class="wordmark">STRAIDHOLD <span>試作 0.1.2</span></div>
+        <div class="wordmark">STRAIDHOLD <span>試作 0.2.0</span></div>
         <div class="scoreboard" aria-label="スコアと残り時間">
           <span class="score blue"><span>青</span> <strong id="blue-score">0</strong></span>
           <time id="clock">05:00</time>
@@ -35,6 +35,12 @@
             <p id="briefing-mode" class="eyebrow">5対5 / 拠点占領</p>
             <h1 id="headline">Straidhold</h1>
             <p id="mission">占領装置を設置し、起動まで拠点を守れ。</p>
+            <div class="map-picker">
+              <label for="map-select">戦場</label>
+              <select id="map-select"></select>
+              <div id="map-preview" aria-hidden="true"></div>
+              <p id="map-description"></p>
+            </div>
             <button id="start" class="primary" type="button" disabled>試合開始</button>
           </div>
         </section>
@@ -45,7 +51,7 @@
           <div class="vital"><label for="hp">HP</label><meter id="hp" min="0" max="100" value="100"></meter><output id="hp-value">100</output></div>
           <div class="vital"><label for="shield">シールド</label><meter id="shield" min="0" max="100" value="100"></meter><output id="shield-value">100</output></div>
         </div>
-        <div class="actions"><span id="attack-state">攻撃待機</span><span id="deploy-state">拠点に近づくと設置可能</span></div>
+        <div class="actions"><span id="attack-state">攻撃待機</span><span id="deploy-state">拠点に近づくと設置可能</span><span id="terrain-state" hidden></span></div>
         <div id="input-hint" class="input-hint"></div>
       </footer>
     </main>

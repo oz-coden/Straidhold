@@ -1,11 +1,10 @@
 import { CameraFollow, type Camera, type Point, type Viewport } from "@simpludify/web";
-import { HEIGHT, WIDTH } from "../rules/arena.ts";
+import type { Arena } from "../rules/arena.ts";
 
 export const VISION_MARGIN = 1.10;
 const MAX_ASPECT = 1.62;
 const MIN_ASPECT = 1.02;
 const EDGE_MARGIN = 68;
-const bounds = { x: -EDGE_MARGIN, y: -EDGE_MARGIN, width: WIDTH + 2 * EDGE_MARGIN, height: HEIGHT + 2 * EDGE_MARGIN };
 
 export function matchViewport(width: number, height: number): Viewport {
   const w = Math.min(width, height * MAX_ASPECT);
@@ -13,13 +12,14 @@ export function matchViewport(width: number, height: number): Viewport {
   return { x: (width - w) / 2, y: (height - h) / 2, width: w, height: h };
 }
 
-export function followCamera(camera: Camera, viewport: Viewport, radius: number) {
+export function followCamera(camera: Camera, viewport: Viewport, radius: number, arena: Arena) {
+  const bounds = { x: -EDGE_MARGIN, y: -EDGE_MARGIN, width: arena.width + 2 * EDGE_MARGIN, height: arena.height + 2 * EDGE_MARGIN };
   const { width, height } = viewport;
   const follow = new CameraFollow(camera, { resolution: viewport, bounds });
   const zoom = Math.max(
     Math.min(width, height) / (2 * radius * VISION_MARGIN),
-    width / WIDTH,
-    height / HEIGHT,
+    width / arena.width,
+    height / arena.height,
   );
   return (point: Point) => {
     camera.zoom = zoom;

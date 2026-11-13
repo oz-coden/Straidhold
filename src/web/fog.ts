@@ -1,19 +1,22 @@
 import type { Game, Point, ViewTransform } from "@simpludify/web";
-import { HEIGHT, WIDTH } from "../rules/arena.ts";
+import type { Arena } from "../rules/arena.ts";
 import type { TeamVision, VisionUnit } from "../rules/vision.ts";
 
 const MASK_SCALE = 0.5;
-const MASK_WIDTH = WIDTH * MASK_SCALE;
-const MASK_HEIGHT = HEIGHT * MASK_SCALE;
 const fogColor = "rgba(4, 9, 17, .73)";
 
-export function createFog<T extends VisionUnit>(game: Game<"briefing" | "match">, container: HTMLElement, vision: TeamVision<T>) {
+export function createFog<T extends VisionUnit>(game: Game<"briefing" | "match">, container: HTMLElement, vision: TeamVision<T>, arena: Arena) {
+  const { width: worldWidth, height: worldHeight } = arena;
+  // Keep the full-map mask bounded even when the map grows.
+  const maskScale = Math.min(MASK_SCALE, 1536 / Math.max(worldWidth, worldHeight));
+  const maskWidth = Math.ceil(worldWidth * maskScale);
+  const maskHeight = Math.ceil(worldHeight * maskScale);
   const overlay = document.createElement("canvas");
   overlay.className = "fog";
   overlay.setAttribute("aria-hidden", "true");
   const mask = document.createElement("canvas");
-  mask.width = MASK_WIDTH;
-  mask.height = MASK_HEIGHT;
+  mask.width = maskWidth;
+  mask.height = maskHeight;
   const maskContext = mask.getContext("2d")!;
   const context = overlay.getContext("2d")!;
   let previous: ViewTransform | undefined;
@@ -51,16 +54,16 @@ export function createFog<T extends VisionUnit>(game: Game<"briefing" | "match">
     overlay.style.height = `${clip.height}px`;
     context.setTransform(width / clip.width, 0, 0, height / clip.height, 0, 0);
     context.clearRect(0, 0, clip.width, clip.height);
-    context.drawImage(mask, x - clip.x, y - clip.y, WIDTH * scale, HEIGHT * scale);
+    context.drawImage(mask, x - clip.x, y - clip.y, worldWidth * scale, worldHeight * scale);
   }
 
   function redrawMask() {
     maskContext.setTransform(1, 0, 0, 1, 0, 0);
     maskContext.globalCompositeOperation = "source-over";
-    maskContext.clearRect(0, 0, MASK_WIDTH, MASK_HEIGHT);
+    maskContext.clearRect(0, 0, maskWidth, maskHeight);
     maskContext.fillStyle = fogColor;
-    maskContext.fillRect(0, 0, MASK_WIDTH, MASK_HEIGHT);
-    maskContext.setTransform(MASK_SCALE, 0, 0, MASK_SCALE, 0, 0);
+    maskContext.fillRect(0, 0, maskWidth, maskHeight);
+    maskContext.setTransform(maskWidth / worldWidth, 0, 0, maskHeight / worldHeight, 0, 0);
     maskContext.globalCompositeOperation = "destination-out";
     maskContext.fillStyle = "#000";
   }

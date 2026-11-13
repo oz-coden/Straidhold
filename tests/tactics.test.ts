@@ -3,7 +3,7 @@ import test from "node:test";
 import { Engine } from "@simpludify/core";
 import { createAI } from "../src/rules/ai.ts";
 import { bushAt, distance, hasClearance, RADIUS, route, TEAMS, TILE, type Arena } from "../src/rules/arena.ts";
-import { ACTIVATE_TICKS, Battle, HZ, selectTarget, STEP } from "../src/rules/battle.ts";
+import { ACTIVATE_TICKS, Battle, HZ, selectTarget, SITE_RADIUS, STEP } from "../src/rules/battle.ts";
 import { IDLE } from "../src/rules/command.ts";
 import { tacticalMaps } from "../src/rules/maps.ts";
 import { Supply } from "../src/rules/supply.ts";
@@ -14,6 +14,17 @@ const [forks, crossings, line, split, cross] = tacticalMaps;
 test("each map starts neutral with mirrored spawn and terrain, traversable lanes and off-lane jungle", () => {
   assert.deepEqual(tacticalMaps.map((map) => map.sites.length), [7, 7, 5, 4, 7]);
   for (const arena of tacticalMaps) {
+    assert.ok(arena.cols >= 100 && arena.cols <= 110 && arena.rows >= 40 && arena.rows <= 46);
+    assert.ok(arena.sites.every((site) => hasClearance(site, site, SITE_RADIUS, arena)));
+    assert.ok(arena.sites.every((a, i) => arena.sites.slice(i + 1).every((b) => distance(a, b) > 2 * SITE_RADIUS)));
+    assert.ok(arena.sites.every((site) => TEAMS.every((team) => distance(site, arena.hq[team]) > 4 * SITE_RADIUS)));
+    // Both outer edges allow a full crossing through jungle with collider clearance.
+    for (const row of [2, arena.rows - 2]) {
+      const from = { x: 2 * TILE, y: row * TILE };
+      const to = { x: (arena.cols - 2) * TILE, y: from.y };
+      assert.ok(hasClearance(from, to, RADIUS, arena), arena.id);
+      assert.ok(arena.laneCells.slice(row * arena.cols, (row + 1) * arena.cols).every((lanes) => !lanes.length), arena.id);
+    }
     const engine = new Engine();
     try {
       const battle = new Battle(engine.scene, "terrain.svg", 60, () => IDLE, arena);
@@ -42,9 +53,9 @@ test("each map starts neutral with mirrored spawn and terrain, traversable lanes
   }
 });
 
-test("large-map navigation can detour through passable jungle around cover", () => {
-  const from = { x: 62 * TILE, y: 38 * TILE };
-  const to = { x: 75 * TILE, y: 38 * TILE };
+test("compact-map navigation can detour through passable jungle around cover", () => {
+  const from = { x: 34 * TILE, y: 20 * TILE };
+  const to = { x: 42 * TILE, y: 20 * TILE };
   assert.equal(hasClearance(from, to, RADIUS, split), false);
   const path = route(from, to, split);
   assert.ok(path.length > 2);
@@ -73,9 +84,9 @@ test("supply speed ramps, breaks on hit or exit, and enemy slowdown follows grap
   const supply = new Supply(line);
   supply.rebuild(line.sites.map(({ id }) => ({ id, owner: id === "D" || id === "B" ? "blue" : null })));
   const blueHQ = line.hq.blue;
-  const mid = { x: 30 * TILE, y: blueHQ.y };
-  const jungle = { x: 30 * TILE, y: blueHQ.y + 5 * TILE };
-  const neutral = { x: 80 * TILE, y: line.hq.red.y + 13 * TILE };
+  const mid = { x: 17 * TILE, y: blueHQ.y };
+  const jungle = { x: 17 * TILE, y: blueHQ.y + 5 * TILE };
+  const neutral = { x: 42 * TILE, y: line.hq.red.y + 7.5 * TILE };
   const state = { boost: 0, slow: 0 };
   assert.ok(supply.speed(state, "blue", mid, 10, true, 1) > 1);
   assert.equal(supply.speed(state, "blue", mid, 10, true, 2), 1.28);
@@ -121,7 +132,7 @@ test("concealment uses the same contacts for team visibility, attack selection a
   const red = battle.fighters[7];
   const bush = forks.bushes[0];
   const center = { x: (bush.x + 2) * TILE, y: (bush.y + 1.5) * TILE };
-  const outside = { x: (bush.x - 1) * TILE, y: center.y };
+  const outside = { x: (bush.x + bush.w + 1) * TILE, y: center.y };
   const sight = new TeamVision(battle.collisions, "blue", battle.fighters, forks);
   try {
     Object.assign(red.position, center);
@@ -161,12 +172,18 @@ function match(arena: Arena) {
   const engine = new Engine();
   const battle = new Battle(engine.scene, "terrain.svg", 70, createAI({ blue: "flank", red: "center" }, 1), arena);
   let hits = 0;
+  let firstHit = 0;
+  let lateHits = 0;
   try {
     for (let i = 0; i < battle.duration; i++) {
       engine.step(STEP);
-      hits += battle.shots.filter(({ tick }) => tick === battle.tick).length;
+      const newHits = battle.shots.filter(({ tick }) => tick === battle.tick).length;
+      if (!firstHit && newHits) firstHit = battle.tick / HZ;
+      if (battle.tick > HZ * 45) lateHits += newHits;
+      hits += newHits;
     }
-    assert.ok(hits > 0, arena.id);
+    assert.ok(firstHit > 0 && firstHit < 18, arena.id);
+    assert.ok(lateHits > 0, arena.id);
     for (const team of TEAMS) assert.ok(battle.scores[team] > 0, arena.id);
     return {
       hits, scores: battle.scores, result: battle.result, supply: battle.supply.lanes, kills: battle.kills,

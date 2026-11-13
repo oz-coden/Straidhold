@@ -304,11 +304,11 @@ test("the follow camera stays at the last position during death and returns to H
 
 test("all five tactical maps launch with their own layout and allow changing maps after a round", async ({ page }) => {
   const layouts = [
-    ["twin-forks", 7, "0 0 6720 2624"],
-    ["three-crossings", 7, "0 0 6912 2816"],
-    ["central-line", 5, "0 0 6656 2688"],
-    ["split-merge", 4, "0 0 6464 2496"],
-    ["cross-supply", 7, "0 0 6848 2880"],
+    ["twin-forks", 7, "0 0 3392 1344"],
+    ["three-crossings", 7, "0 0 3456 1472"],
+    ["central-line", 5, "0 0 3328 1344"],
+    ["split-merge", 4, "0 0 3264 1280"],
+    ["cross-supply", 7, "0 0 3456 1472"],
   ] as const;
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -333,7 +333,7 @@ test("all five tactical maps launch with their own layout and allow changing map
     await page.keyboard.down("d");
     await page.clock.runFor(300);
     await page.keyboard.up("d");
-    await expect(panel.locator(".minimap-player")).not.toHaveAttribute("transform", /^translate\(256\.0 /);
+    await expect(panel.locator(".minimap-player")).not.toHaveAttribute("transform", /^translate\(192\.0 /);
     for (let i = 0; i < 4 && await page.locator("#overlay").isHidden(); i++) {
       await page.clock.runFor(1700);
     }
@@ -343,7 +343,7 @@ test("all five tactical maps launch with their own layout and allow changing map
   expect(errors).toEqual([]);
 });
 
-test("large-map capture connects a supply lane in the HUD and minimap", async ({ page }) => {
+test("a player reaches the front, connects supply, and attacks on the compact map", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 800, height: 450 });
@@ -356,7 +356,7 @@ test("large-map capture connects a supply lane in the HUD and minimap", async ({
   await expect(page.locator(".minimap-unit[data-team=red][transform]")).toHaveCount(0);
   const forwardSite = page.locator("#sites .site").filter({ has: page.getByText("D", { exact: true }) });
   await page.keyboard.down("d");
-  await page.clock.runFor(9200);
+  await page.clock.runFor(4650);
   await page.keyboard.up("d");
   await expect(forwardSite).toContainText(/青 起動|青/);
   for (let i = 0; i < 5 && await forwardSite.getAttribute("data-supply") !== "linked"; i++) {
@@ -366,6 +366,18 @@ test("large-map capture connects a supply lane in the HUD and minimap", async ({
   await expect(forwardSite).toHaveAttribute("data-supply", "linked");
   await expect(page.locator('.minimap line[stroke="#75ddff"]').first()).toBeAttached();
   expect(Number(await page.locator("#blue-score").textContent())).toBeGreaterThan(0);
+  const clip = (await page.locator(".fog").boundingBox())!;
+  await page.mouse.move(clip.x + clip.width * 0.9, clip.y + clip.height * 0.5);
+  await page.mouse.down();
+  await page.keyboard.down("d");
+  for (let i = 0; i < 13; i++) {
+    await page.clock.runFor(380);
+    if (await page.locator("#attack-state").textContent() === "攻撃命中") break;
+  }
+  await page.keyboard.up("d");
+  await page.mouse.up();
+  await expect(page.locator("#attack-state")).toHaveText("攻撃命中");
+  await expect(page.locator(".minimap-unit[data-team=red][transform]").first()).toBeAttached();
   expect(errors).toEqual([]);
 });
 

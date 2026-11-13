@@ -21,26 +21,25 @@ export interface TouchView {
   deploy: HTMLElement;
 }
 
-const stickPosition = { x: 0.15, y: 0.75 };
 function buttonPosition(view: Viewport, kind: "fire" | "deploy") {
   const radius = kind === "fire" ? 31 : 23;
   const fireX = view.x + view.width - Math.max(43, view.width * 0.12);
   return {
     radius,
-    x: fireX - (kind === "fire" ? 0 : Math.min(74, view.width * 0.23)),
-    y: view.y + Math.max(radius + 4, view.height * (kind === "fire" ? 0.73 : 0.49)),
+    x: fireX - (kind === "fire" ? 0 : Math.max(56, Math.min(80, view.width * 0.23))),
+    y: view.y + Math.max(radius + 4, view.height * (kind === "fire" ? 0.75 : 0.55)),
   };
 }
 
-function buttonRegion(kind: "fire" | "deploy") {
+function buttonRegion(surface: () => Viewport, kind: "fire" | "deploy") {
   return {
     kind: "custom" as const,
-    bounds(view: Viewport) {
-      const { x, y, radius } = buttonPosition(view, kind);
+    bounds() {
+      const { x, y, radius } = buttonPosition(surface(), kind);
       return { x: x - radius, y: y - radius, width: radius * 2, height: radius * 2 };
     },
-    contains(point: Point, view: Viewport) {
-      const { x, y, radius } = buttonPosition(view, kind);
+    contains(point: Point) {
+      const { x, y, radius } = buttonPosition(surface(), kind);
       return Math.hypot(point.x - x, point.y - y) < radius;
     },
   };
@@ -83,15 +82,25 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
   game.gamepads.onChange(assignPad, context.scene);
   assignPad();
 
+  // Keep touch targets on the full host even when the camera view has side gutters.
+  const touchSurface = () => ({
+    x: 0, y: 0, width: game.element.clientWidth, height: game.element.clientHeight,
+  });
   const moveStick = context.virtualInput.stick(touch, Touch.move, {
-    position: stickPosition,
-    region: { kind: "rect", x: 0, y: 0.36, width: 0.46, height: 0.64 },
+    region: {
+      kind: "custom",
+      bounds() {
+        const { width, height } = touchSurface();
+        return { x: 0, y: height * 0.46, width: width * 0.35, height: height * 0.54 };
+      },
+      contains: () => true,
+    },
     visible: false,
   });
   const fireButton = context.virtualInput.button(touch, Touch.fire, {
-    region: buttonRegion("fire"), direction: true, radius: 42, deadZone: 0.16, holdDelay: 0.12, visible: false,
+    region: buttonRegion(touchSurface, "fire"), direction: true, radius: 42, deadZone: 0.16, holdDelay: 0.12, visible: false,
   });
-  const deployButton = context.virtualInput.button(touch, Touch.deploy, { region: buttonRegion("deploy"), visible: false });
+  const deployButton = context.virtualInput.button(touch, Touch.deploy, { region: buttonRegion(touchSurface, "deploy"), visible: false });
   let mode: InputMode = initialInputMode();
   let settings = initial;
   let mouse: { clientX: number; clientY: number } | undefined;
@@ -196,7 +205,7 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
 
   function paint(deployReady: boolean) {
     if (mode !== "touch") return;
-    const viewport = game.viewport;
+    const viewport = touchSurface();
     const center = moveStick.center;
     const knob = moveStick.knob;
     position(view.stick, center, moveStick.radius);

@@ -9,7 +9,7 @@
   <body>
     <main id="app">
       <header class="match-header">
-        <div class="wordmark">STRAIDHOLD <span>試作 0.1.0</span></div>
+        <div class="wordmark">STRAIDHOLD <span>試作 0.1.1</span></div>
         <div class="scoreboard" aria-label="スコアと残り時間">
           <span class="score blue"><span>青</span> <strong id="blue-score">0</strong></span>
           <time id="clock">05:00</time>
@@ -17,7 +17,10 @@
         </div>
         <button id="open-settings" class="secondary" type="button">操作設定</button>
       </header>
-      <section id="sites" class="site-strip" aria-label="拠点の状態"></section>
+      <div class="tactical-strip">
+        <section id="roster" aria-label="チームの生存状況"></section>
+        <section id="sites" class="site-strip" aria-label="拠点の状態"></section>
+      </div>
       <section id="battlefield" class="battlefield" aria-label="戦場">
         <div id="game"></div>
         <div id="map-labels" aria-hidden="true"></div>

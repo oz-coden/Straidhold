@@ -1,9 +1,14 @@
-import { Aspect, Camera, Game } from "@simpludify/web";
+import { Aspect, Camera, Game, type Point } from "@simpludify/web";
 import "@simpludify/web/style.css";
 import "./style.css";
 import atlas from "./web/terrain.svg?url";
 import { distance, HEIGHT, placeArena, SITES, WIDTH } from "./rules/arena.ts";
 import { createAI } from "./rules/ai.ts";
+import { TeamVision } from "./rules/vision.ts";
+import { followCamera, matchViewport } from "./web/camera.ts";
+import { createFog } from "./web/fog.ts";
+import { createMinimap } from "./web/minimap.ts";
+import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
@@ -11,10 +16,20 @@ import { settingsPanel, type InputMode } from "./web/settings.ts";
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = get("app");
+let updateCameraLayout: (() => void) | undefined;
+let paintOverlay: (() => void) | undefined;
 const game = new Game<"briefing" | "match">({
   parent: get("game"),
   resolution: { width: WIDTH, height: HEIGHT },
-  aspect: Aspect.Fit,
+  aspect: Aspect.Adaptive,
+  frames: {
+    request: (step) => requestAnimationFrame((time) => {
+      updateCameraLayout?.();
+      step(time);
+      paintOverlay?.();
+    }),
+    cancel: (id) => cancelAnimationFrame(id),
+  },
   camera: new Camera(),
   fixedStep: { step: STEP, maxSteps: 6, maxFrameDelta: 0.1 },
   tokens: { background: "#080f18" },
@@ -38,6 +53,7 @@ const sites = SITES.map(({ id }) => {
   progress.max = ACTIVATE_TICKS;
   progress.setAttribute("aria-label", `${id}拠点の起動進捗`);
   progress.hidden = true;
+  title.className = "site-icon";
   title.textContent = id;
   state.textContent = "中立";
   row.append(title, state, progress);
@@ -91,7 +107,16 @@ announceMode(settings.mode === "auto" ? initialInputMode() : settings.mode);
 
 game.scene("briefing", ({ scene }) => {
   placeArena(scene, atlas);
-  createField(game, scene, get("map-labels"));
+  const labels = createField(game, scene, get("map-labels"));
+  scene.onActivate(() => {
+    updateCameraLayout = () => {
+      const { width, height } = game.viewport;
+      game.camera.zoom = Math.min(width / WIDTH, height / HEIGHT);
+      game.camera.x = (WIDTH - width) / 2;
+      game.camera.y = (HEIGHT - height) / 2;
+    };
+    paintOverlay = labels;
+  });
 });
 
 game.scene("match", (context) => {
@@ -100,16 +125,70 @@ game.scene("match", (context) => {
   const battle = new Battle(context.scene, atlas, seconds, (fighter, state) =>
     fighter.id === "blue-2" ? input.sample(fighter.position) : ai(fighter, state));
   const player = battle.fighters[2];
-  createField(game, context.scene, get("map-labels"), battle, player);
+  const vision = new TeamVision(player.team, battle.fighters);
+  const fog = createFog(game, get("battlefield"), vision);
+  const minimap = createMinimap(game, get("battlefield"), battle, player, vision, fog.mask);
+  const roster = createRoster(get("roster"), battle, player);
+  let track: ((point: Point) => void) | undefined;
+  let width = 0;
+  let height = 0;
+  let focus: Point = { x: player.position.x, y: player.position.y };
+  let wasAlive = true;
+  let visionTick = -1;
+  context.onUpdate(() => {
+    if (visionTick === battle.tick) return;
+    visionTick = battle.tick;
+    vision.update();
+    if (player.hp > 0) {
+      focus = player.position;
+      track?.(focus);
+    } else if (wasAlive) {
+      focus = { x: player.position.x, y: player.position.y };
+    }
+    wasAlive = player.hp > 0;
+  });
+  context.onActivate(() => {
+    vision.update();
+    visionTick = battle.tick;
+  });
+  const labels = createField(game, context.scene, get("map-labels"), battle, player, vision);
   context.onActivate(() => {
     currentInput = input;
+    updateCameraLayout = () => {
+      const nextWidth = game.element.clientWidth;
+      const nextHeight = game.element.clientHeight;
+      if (nextWidth <= 0 || nextHeight <= 0 || (width === nextWidth && height === nextHeight)) return;
+      width = nextWidth;
+      height = nextHeight;
+      const viewport = matchViewport(width, height);
+      track = followCamera(game.camera, viewport, player.profile.vision);
+      track(focus);
+      game.setViewport(viewport);
+    };
+    paintOverlay = () => {
+      fog.paint();
+      labels();
+      minimap.paint();
+      input.paint(get("deploy-state").dataset.ready === "true");
+      if (resultShown) touchView.layer.hidden = true;
+    };
+    fog.mount();
+    minimap.mount();
+    roster.mount();
+    roster.paint();
     active = true;
     resultShown = false;
-    overlay.hidden = true;
     game.element.focus({ preventScroll: true });
   });
   context.onDispose(() => {
-    if (currentInput === input) currentInput = undefined;
+    fog.dispose();
+    minimap.dispose();
+    roster.dispose();
+    if (currentInput === input) {
+      currentInput = undefined;
+      updateCameraLayout = undefined;
+      paintOverlay = undefined;
+    }
   });
 
   context.onUpdate(() => {
@@ -128,10 +207,11 @@ game.scene("match", (context) => {
     display(deployState, deploy ? `${availableSite.id}に装置を設置できる`
       : availableSite?.device ? `${availableSite.id}の装置が起動中` : "拠点に近づくと設置可能");
     const attack = get("attack-state");
+    const hasTarget = player.target && vision.shows(player.target);
     const fired = battle.shots.some(({ from }) => from === player);
-    display(attack, player.hp <= 0 ? "攻撃不可" : fired ? "攻撃命中" : player.command.attack && !player.target ? "射程内に有効な対象なし"
-      : battle.tick < player.attackAt ? "攻撃クールダウン" : player.target ? "攻撃対象を捕捉" : "攻撃待機");
-    input.paint(deploy);
+    display(attack, player.hp <= 0 ? "攻撃不可" : fired ? "攻撃命中" : player.command.attack && !hasTarget ? "射程内に有効な対象なし"
+      : battle.tick < player.attackAt ? "攻撃クールダウン" : hasTarget ? "攻撃対象を捕捉" : "攻撃待機");
+    roster.paint();
     battle.sites.forEach(({ owner, device }, i) => {
       const { row, state, progress } = sites[i];
       row.dataset.owner = owner ?? "neutral";
@@ -168,6 +248,9 @@ start.addEventListener("click", async () => {
   start.disabled = true;
   try {
     await game.changeScene("match");
+    updateCameraLayout?.();
+    paintOverlay?.();
+    overlay.hidden = true;
   } catch (error) {
     report(error);
   } finally {
@@ -187,6 +270,8 @@ dialog.addEventListener("close", () => {
 }, { signal: life.signal });
 function dispose() {
   life.abort();
+  updateCameraLayout = undefined;
+  paintOverlay = undefined;
   game.dispose();
   get("map-labels").replaceChildren();
   touchView.layer.hidden = true;

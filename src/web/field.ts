@@ -1,6 +1,8 @@
 import { Actor, Renderable, Shape, Transform, type Game, type Point, type Scene } from "@simpludify/web";
 import { distance, HQ, SITES, TEAMS, type Team } from "../rules/arena.ts";
-import { ACTIVATE_TICKS, canSee, type Battle, type Fighter } from "../rules/battle.ts";
+import { ACTIVATE_TICKS, type Battle, type Fighter } from "../rules/battle.ts";
+
+import type { TeamVision } from "../rules/vision.ts";
 
 const colors = { blue: 0x5bcff6, red: 0xff817a, neutral: 0xa8b5bc };
 const dark = 0x102331;
@@ -17,23 +19,22 @@ function move(sprite: { transform: Transform }, x: number, y: number) {
   sprite.transform.y = y;
 }
 
-function addLabel(layer: HTMLElement, label: string, team?: Team) {
+function addLabel(label: string, team?: Team) {
   const node = document.createElement("span");
   node.className = "map-label";
   node.textContent = label;
   if (team) node.dataset.team = team;
-  layer.append(node);
   return node;
 }
 
-export function createField(game: Game<"briefing" | "match">, scene: Scene, labels: HTMLElement, battle?: Battle, player?: Fighter) {
+export function createField(game: Game<"briefing" | "match">, scene: Scene, labels: HTMLElement, battle?: Battle, player?: Fighter, vision?: TeamVision<Fighter>) {
   const elements: HTMLElement[] = [];
   const hqs = TEAMS.map((team) => {
     const point = HQ[team];
     shape(scene, point, 214, 62, colors[team], -7).render.opacity = 0.24;
     shape(scene, point, 212, 2, colors[team], -6).transform.y += team === "blue" ? 30 : -30;
     shape(scene, point, 63, 57, colors[team], -6, Shape.Hexagon).render.opacity = 0.55;
-    const label = addLabel(labels, team === "blue" ? "青本部" : "赤本部", team);
+    const label = addLabel(team === "blue" ? "青本部" : "赤本部", team);
     elements.push(label);
     return { point: { x: point.x, y: point.y + (team === "blue" ? 42 : -42) }, label };
   });
@@ -48,7 +49,7 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
     device.render.visible = false;
     const progress = shape(scene, { x: site.x, y: site.y + 30 }, 3, 3, white, -2);
     progress.render.visible = false;
-    const label = addLabel(labels, site.id);
+    const label = addLabel(site.id);
     elements.push(label);
     return { site, outer, base, device, progress, label };
   });
@@ -69,16 +70,28 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
   const tracers = battle ? Array.from({ length: 10 }, () => shape(scene, HQ.blue, 1, 2.8, white, 2)) : [];
   scene.onDispose(() => elements.forEach((element) => element.remove()));
 
+  scene.onActivate(() => labels.append(...elements));
+
   function project(node: HTMLElement, point: Point) {
     const screen = game.worldToScreen({ space: "world", ...point });
+    const clip = game.view.clip;
+    node.hidden = screen.x < clip.x || screen.y < clip.y || screen.x >= clip.x + clip.width || screen.y >= clip.y + clip.height;
+    if (node.hidden) return;
     node.style.left = `${screen.x}px`;
     node.style.top = `${screen.y}px`;
   }
 
-  function paint() {
+  let previousView = null as typeof game.view | null;
+  function projectLabels() {
+    const view = game.view;
+    if (view === previousView) return;
+    previousView = view;
     for (const { point, label } of hqs) project(label, point);
-    sites.forEach(({ site, label, base, outer, device, progress }, i) => {
-      project(label, site);
+    for (const { site, label } of sites) project(label, site);
+  }
+
+  function paint() {
+    sites.forEach(({ label, base, outer, device, progress }, i) => {
       const state = battle?.sites[i];
       const color = colors[state?.owner ?? "neutral"];
       label.dataset.team = state?.owner ?? "neutral";
@@ -90,11 +103,9 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
         progress.render.width = Math.max(1, 60 * state.device.progress / ACTIVATE_TICKS);
       }
     });
-    if (!battle || !player) return;
-    const visible = new Set(battle.fighters.filter((fighter) => fighter.team === player.team
-      || battle.fighters.some((ally) => ally.team === player.team && canSee(ally, fighter))));
+    if (!battle || !player || !vision) return;
     for (const { fighter, body, core, heading, back, hp, shield } of units) {
-      const show = visible.has(fighter) && fighter.hp > 0;
+      const show = vision.shows(fighter);
       for (const part of [body, core, heading, back, hp, shield]) part.render.visible = show;
       if (!show) continue;
       const { x, y } = fighter.position;
@@ -114,22 +125,21 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
       move(ring, player.position.x, player.position.y);
     }
     const target = player.target;
-    targetRing.render.visible = !!target && target.hp > 0 && visible.has(target);
-    if (target) move(targetRing, target.position.x, target.position.y);
+    targetRing.render.visible = !!target && vision.shows(target);
+    if (target && targetRing.render.visible) move(targetRing, target.position.x, target.position.y);
     const aim = player.command.aim;
     aimMarker.render.visible = !!aim && player.hp > 0;
-    if (aim) {
+    if (aim && player.hp > 0) {
       move(aimMarker, player.position.x + aim.x * 27, player.position.y + aim.y * 27);
       aimMarker.transform.rotation = Math.atan2(aim.y, aim.x) + Math.PI / 2;
     }
-    const shots = battle.shots.filter(({ from, to }) => visible.has(from) && visible.has(to)).slice(-tracers.length);
+    const shots = battle.shots.filter(({ from, to, origin, impact }) =>
+      vision.shows(from) && vision.shows(to) && vision.sees(origin) && vision.sees(impact)).slice(-tracers.length);
     tracers.forEach((tracer, i) => {
       const shot = shots[i];
       tracer.render.visible = !!shot;
       if (!shot) return;
-      const { from, to, tick } = shot;
-      const a = from.position;
-      const b = to.position;
+      const { from, origin: a, impact: b, tick } = shot;
       move(tracer, (a.x + b.x) / 2, (a.y + b.y) / 2);
       tracer.transform.rotation = Math.atan2(b.y - a.y, b.x - a.x);
       tracer.render.width = Math.max(1, distance(a, b));
@@ -138,5 +148,11 @@ export function createField(game: Game<"briefing" | "match">, scene: Scene, labe
     });
   }
   scene.onActivate(paint);
-  scene.onUpdate(paint);
+  let paintedTick = battle?.tick;
+  scene.onUpdate(() => {
+    if (battle?.tick === paintedTick) return;
+    paintedTick = battle?.tick;
+    paint();
+  });
+  return projectLabels;
 }

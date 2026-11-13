@@ -330,3 +330,15 @@ dialog button { justify-self: end; }
 @media (max-width: 680px) {
   .site-strip { grid-template-columns: repeat(min(var(--site-count, 3), 4), minmax(0, 1fr)); }
 }
+@media (max-height: 420px) {
+  .briefing {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 8px;
+  }
+  .briefing > :is(.eyebrow, h1, #mission) { grid-column: 1 / -1; margin: 0; }
+  .map-picker { display: contents; }
+  .briefing #start { grid-column: 3; grid-row: 4; padding: .42em .7em; white-space: nowrap; font-size: 13px; }
+  #map-preview { grid-row: 5; }
+}

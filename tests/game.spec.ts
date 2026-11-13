@@ -377,6 +377,7 @@ test.describe("tactical map on a small touch screen", () => {
     await page.goto("/?map=cross-supply&round=20");
     await expect(page.getByRole("combobox", { name: "戦場", exact: true })).toBeInViewport();
     await expect(page.locator("#start")).toBeEnabled();
+    await expect(page.locator("#start")).toBeInViewport();
     await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
     await page.locator("#start").click({ force: true });
     await expect(page.locator("#overlay")).toBeHidden();

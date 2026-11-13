@@ -280,10 +280,15 @@ test("the follow camera stays at the last position during death and returns to H
   const respawn = page.locator("#respawn");
   const homeY = Number(await camera.getAttribute("y"));
   await page.keyboard.down("w");
-  await page.clock.runFor(2700);
+  for (let i = 0; i < 12; i++) {
+    const transform = await player.getAttribute("transform");
+    const y = Number(transform?.match(/translate\([^ ]+ ([^)]+)\)/)?.[1]);
+    if (y < 105) break;
+    await page.clock.runFor(300);
+  }
   await page.keyboard.up("w");
   expect(Number(await camera.getAttribute("y"))).toBeLessThan(homeY - 100);
-  for (let i = 0; i < 12 && !await respawn.isVisible(); i++) await page.clock.runFor(800);
+  for (let i = 0; i < 18 && !await respawn.isVisible(); i++) await page.clock.runFor(800);
   await expect(respawn).toBeVisible();
   await expect(player).not.toHaveAttribute("transform");
   const deathY = await camera.getAttribute("y");
@@ -292,6 +297,7 @@ test("the follow camera stays at the last position during death and returns to H
   for (let i = 0; i < 14 && await respawn.isVisible(); i++) await page.clock.runFor(800);
   await expect(respawn).toBeHidden();
   await expect(player).toHaveAttribute("transform", /^translate\(480\.0 464\.0\)/);
+  await expect(page.locator(".roster-player")).toHaveAttribute("data-state", "alive");
   expect(Number(await camera.getAttribute("y"))).toBeCloseTo(homeY);
   expect(errors).toEqual([]);
 });

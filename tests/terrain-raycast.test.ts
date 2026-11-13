@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Actor, Collider, CollisionResponse, CollisionWorld, Scene, Transform } from "@simpludify/core";
 import { castTerrain, hasClearance, placeArena, RADIUS } from "../src/rules/arena.ts";
+import { sightOutline } from "../src/rules/vision.ts";
 
 test("terrain rays match the original closed wall intersection at edges and corners", (t) => {
   const scene = new Scene("terrain");
@@ -50,4 +51,29 @@ test("terrain rays ignore actor colliders and leave movement clearance to pathin
   assert.equal(castTerrain(collisions, from, to), undefined);
   assert.equal(hasClearance(from, to, RADIUS), false);
   assert.equal(hasClearance({ x: 320, y: 236 }, { x: 430, y: 236 }, RADIUS), true);
+});
+
+test("the Fog outline stops a normalized ray grazing a wall corner", (t) => {
+  const scene = new Scene("terrain");
+  t.after(() => scene.dispose());
+  const collisions = new CollisionWorld(scene);
+  placeArena(scene, "terrain.svg");
+
+  const origin = { x: 112, y: 48 };
+  const corner = { x: 192, y: 192 };
+  const angle = Math.atan2(corner.y - origin.y, corner.x - origin.x);
+  const pointAt = (offset: number) => ({
+    x: origin.x + 235 * Math.cos(angle + offset),
+    y: origin.y + 235 * Math.sin(angle + offset),
+  });
+  const hit = castTerrain(collisions, origin, pointAt(0));
+  assert.ok(hit);
+  assert.ok(Math.hypot(hit.point.x - corner.x, hit.point.y - corner.y) < 1e-10);
+  assert.ok(castTerrain(collisions, origin, pointAt(-0.0001)));
+  assert.equal(castTerrain(collisions, origin, pointAt(0.0001)), undefined);
+
+  const outline = sightOutline(collisions, origin, 235);
+  assert.ok(outline.some((point) => Math.hypot(point.x - corner.x, point.y - corner.y) < 1e-10));
+  const clearSide = pointAt(0.0001);
+  assert.ok(outline.some((point) => Math.hypot(point.x - clearSide.x, point.y - clearSide.y) < 1e-10));
 });

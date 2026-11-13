@@ -62,6 +62,7 @@ export function createFog<T extends VisionUnit>(game: Game<"briefing" | "match">
     maskContext.fillRect(0, 0, MASK_WIDTH, MASK_HEIGHT);
     maskContext.setTransform(MASK_SCALE, 0, 0, MASK_SCALE, 0, 0);
     maskContext.globalCompositeOperation = "destination-out";
+    maskContext.fillStyle = "#000";
   }
 
   // Both views use the exact same mask. Refresh the base only before changed outlines.

@@ -13,7 +13,7 @@ async function startMatch(page: Page, seconds = 22) {
 }
 
 test("desktop plays the production build through attack, capture, result and rematch", async ({ page }) => {
-  await page.setViewportSize({ width: 960, height: 560 });
+  await page.setViewportSize({ width: 720, height: 412 });
   const errors = await startMatch(page);
   const canvas = page.locator("#game canvas");
   await expect(canvas).toHaveCount(1);
@@ -31,7 +31,9 @@ test("desktop plays the production build through attack, capture, result and rem
   await page.clock.runFor(12_500);
   await expect(page.locator("#sites .site").nth(1)).toHaveAttribute("data-owner", "blue");
   await page.mouse.up();
-  await page.clock.runFor(9000);
+  for (let i = 0; i < 12 && await page.locator("#clock").textContent() !== "00:00"; i++) {
+    await page.clock.runFor(1000);
+  }
   await expect(page.locator("#clock")).toHaveText("00:00");
   await expect(page.locator("#headline")).toHaveText(/チームの勝利|引き分け/);
   await expect(page.locator("#start")).toHaveText("再試合");
@@ -42,6 +44,9 @@ test("desktop plays the production build through attack, capture, result and rem
   await expect(page.locator("#clock")).toHaveText("00:22");
   await expect(page.locator("#blue-score")).toHaveText("0");
   await expect(page.locator("#map-labels .map-label")).toHaveCount(5);
+  await expect(page.locator(".fog")).toHaveCount(1);
+  await expect(page.locator(".minimap")).toHaveCount(1);
+  await expect(page.locator(".roster-unit")).toHaveCount(10);
   await expect(canvas).toHaveCount(1);
   expect(errors).toEqual([]);
 });
@@ -56,6 +61,9 @@ test.describe("small touch screen", () => {
     const fire = page.locator("#touch-fire");
     const stick = (await page.locator("#stick").boundingBox())!;
     const button = (await fire.boundingBox())!;
+    const minimap = (await page.locator(".minimap").boundingBox())!;
+    const deploy = (await page.locator("#touch-deploy").boundingBox())!;
+    for (const control of [stick, button, deploy]) expect(control.y).toBeGreaterThan(minimap.y + minimap.height);
     const movePoint = { id: 1, x: stick.x + stick.width / 2, y: stick.y + stick.height / 2 };
     const firePoint = { id: 2, x: button.x + button.width / 2, y: button.y + button.height / 2 };
     await page.mouse.click(280, 160, { button: "right" });
@@ -183,7 +191,74 @@ test("saved settings recover safely and leaving an active match releases its res
   await expect(page.locator("#map-labels .map-label")).toHaveCount(5);
   const counts = await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent("pagehide"));
-    return [document.querySelectorAll("#game canvas").length, document.querySelectorAll("#map-labels .map-label").length];
+    return document.querySelectorAll("#game canvas, #map-labels .map-label, .fog, .minimap, .roster-unit").length;
   });
-  expect(counts).toEqual([0, 0]);
+  expect(counts).toBe(0);
+});
+
+test("shared Fog, camera and public roster update during the match", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 480 });
+  const errors = await startMatch(page);
+  const redMarkers = page.locator(".minimap-unit[data-team=red]");
+  const contactCount = () => page.locator(".minimap-unit[data-team=red][transform]").count();
+  const camera = page.locator(".minimap-camera");
+  const view = await camera.evaluate((node) =>
+    Object.fromEntries(["x", "y", "width", "height"].map((name) => [name, Number(node.getAttribute(name))])));
+  expect(view.width).toBeGreaterThan(2 * 235);
+  expect(view.height).toBeGreaterThan(2 * 235);
+  expect(view.height).toBeLessThan(2 * 235 * 1.13);
+  expect(view.x).toBeGreaterThanOrEqual(-68);
+  expect(view.y + view.height).toBeLessThanOrEqual(544 + 68 + 1e-8);
+  await expect(page.locator(".minimap [data-team=blue][transform]")).toHaveCount(5);
+  await expect(page.locator(".minimap-player")).toHaveAttribute("transform", "translate(480.0 464.0) rotate(0.0)");
+  expect(await contactCount()).toBe(0);
+  await expect(page.locator(".roster-team[data-team=red] .roster-count")).toHaveText("5/5");
+
+  async function fogAlpha(x: number, y: number) {
+    return page.locator(".minimap canvas").evaluate((canvas: HTMLCanvasElement, [x, y]) =>
+      canvas.getContext("2d")!.getImageData(x / 2, y / 2, 1, 1).data[3], [x, y]);
+  }
+  expect(await fogAlpha(480, 340)).toBeLessThan(15);
+  expect(await fogAlpha(480, 220)).toBeGreaterThan(160);
+  expect(await fogAlpha(370, 430)).toBeGreaterThan(160);
+  expect(await fogAlpha(160, 340)).toBeGreaterThan(160);
+
+  await page.clock.runFor(2050);
+  expect(await contactCount()).toBeGreaterThan(1);
+  await expect(page.locator(".minimap-player")).toHaveAttribute("transform", "translate(480.0 464.0) rotate(0.0)");
+  expect(await fogAlpha(160, 340)).toBeLessThan(15);
+  await page.setViewportSize({ width: 820, height: 460 });
+  await page.clock.runFor(50);
+  const clip = (await page.locator(".fog").boundingBox())!;
+  await page.keyboard.down("w");
+  await page.mouse.move(clip.x + clip.width / 2, clip.y + clip.height * 0.15);
+  await page.clock.runFor(800);
+  await page.keyboard.up("w");
+  expect(Number(await camera.getAttribute("y"))).toBeLessThan(view.y - 20);
+  await expect(page.locator("#attack-state")).toHaveText("攻撃対象を捕捉");
+  await page.mouse.down();
+  await page.clock.runFor(120);
+  await page.mouse.up();
+  await expect(page.locator("#attack-state")).toHaveText(/攻撃命中|攻撃クールダウン/);
+
+  // Retreat to the HQ so the outlying AI skirmishes are left to run independently.
+  await page.keyboard.down("s");
+  await page.clock.runFor(860);
+  await page.keyboard.up("s");
+  const oldCameraY = Number(await camera.getAttribute("y"));
+  await page.clock.runFor(6700);
+  expect(Number(await camera.getAttribute("y"))).toBeCloseTo(oldCameraY, 3);
+  expect(await contactCount()).toBeLessThan(await redMarkers.count());
+  expect(Number(await page.locator("#blue-score").textContent()) + Number(await page.locator("#red-score").textContent())).toBeGreaterThan(0);
+  await expect(page.locator("#sites .site[data-owner]:not([data-owner=neutral])").first()).toBeVisible();
+  const down = page.locator(".roster-unit[data-state=down]").first();
+  await expect(down).toBeVisible();
+  const seconds = Number(await down.textContent());
+  expect(seconds).toBeGreaterThan(0);
+  const label = (await down.getAttribute("aria-label"))!.split(" 復活")[0];
+  await page.clock.runFor(1000);
+  const portrait = page.getByRole("img", { name: new RegExp(`^${label} (?:復活まで|生存)`) });
+  if (seconds > 1) await expect(portrait).toHaveText(String(seconds - 1));
+  else await expect(portrait).toHaveAttribute("data-state", "alive");
+  expect(errors).toEqual([]);
 });

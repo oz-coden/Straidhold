@@ -13,14 +13,14 @@ import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
-import { CHARACTERS, initialMatchSetup, PLAYER_ID, RoundPreparation, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
+import { CHARACTERS, initialMatchSetup, MatchSeries, PLAYER_ID, RoundPreparation, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
 import { settingsPanel, type InputMode } from "./web/settings.ts";
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = get("app");
 const screens = {
   title: get("title-screen"), setup: get("setup-screen"), character: get("character-screen"),
-  lobby: get("lobby-screen"), battle: app,
+  lobby: get("lobby-screen"), battle: app, result: get("result-screen"),
 };
 const lobbyStart = get<HTMLButtonElement>("lobby-start");
 const lobbyReady = get<HTMLButtonElement>("lobby-ready");
@@ -46,7 +46,6 @@ const game = new Game<"briefing" | "match">({
   tokens: { background: "#080f18" },
 });
 const clock = get<HTMLTimeElement>("clock");
-const overlay = get("overlay");
 const preparationView = get("preparation");
 const preparationTitle = get("preparation-heading");
 const skipPreparation = get<HTMLButtonElement>("skip-preparation");
@@ -55,6 +54,7 @@ const headline = get("headline");
 const mission = get("mission");
 const start = get<HTMLButtonElement>("start");
 const dialog = get<HTMLDialogElement>("settings");
+const leaveDialog = get<HTMLDialogElement>("leave-dialog");
 const life = new AbortController();
 const touchView = {
   layer: get("touch-controls"),
@@ -137,8 +137,7 @@ function showClock(remaining: number) {
 showClock(seconds);
 
 let currentInput: ReturnType<typeof createInput> | undefined;
-let active = false;
-let resultShown = false;
+let series: MatchSeries | undefined;
 let transition = false;
 const settings = settingsPanel(dialog, (next) => {
   currentInput?.updateSettings(next);
@@ -149,12 +148,14 @@ announceMode(settings.mode === "auto" ? initialInputMode() : settings.mode);
 game.scene("briefing", () => {});
 
 game.scene("match", (context) => {
-  const arena = setup.arena;
-  const intro = new RoundPreparation(true);
+  const match = series!;
+  const arena = match.setup.arena;
+  const intro = new RoundPreparation(match.rounds.length === 0);
+  let finished = false;
   const sites = siteHud(arena);
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
-  const battle = new Battle(context.scene, atlas, seconds, (fighter, state) =>
+  const battle = new Battle(context.scene, atlas, match.setup.roundSeconds, (fighter, state) =>
     fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false);
   const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
   const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
@@ -192,6 +193,10 @@ game.scene("match", (context) => {
     preparationView.hidden = false;
     skipPreparation.hidden = false;
     display(preparationTitle, "ラウンド準備");
+    const { blue, red } = match.wins;
+    display(get("round-status"), match.setup.rule === "single"
+      ? ""
+      : `第${match.rounds.length + 1}ラウンド · 青 ${blue} — ${red} 赤`);
     display(get("preparation-time"), intro.remaining);
     preparationTitle.focus({ preventScroll: true });
     app.dataset.map = arena.id;
@@ -212,14 +217,12 @@ game.scene("match", (context) => {
       labels();
       minimap.paint();
       input.paint(get("deploy-state").dataset.ready === "true");
-      if (resultShown || intro.phase !== "combat") touchView.layer.hidden = true;
+      if (finished || intro.phase !== "combat") touchView.layer.hidden = true;
     };
     fog.mount();
     minimap.mount();
     roster.mount();
     roster.paint();
-    active = true;
-    resultShown = false;
   });
   context.onDispose(() => {
     fog.dispose();
@@ -299,15 +302,11 @@ game.scene("match", (context) => {
         progress.dataset.team = device.team;
       }
     });
-    if (battle.result && !resultShown) {
-      resultShown = true;
-      active = false;
+    if (battle.result && !finished) {
+      finished = true;
       touchView.layer.hidden = true;
-      display(headline, battle.result === "draw" ? "引き分け" : `${names[battle.result]}チームの勝利`);
-      display(mission, `青 ${battle.scores.blue} — ${battle.scores.red} 赤`);
-      display(start, "再試合");
-      overlay.hidden = false;
-      start.focus({ preventScroll: true });
+      match.finishRound({ winner: battle.result, scores: battle.scores });
+      void showResult(match);
     }
   });
 });
@@ -319,22 +318,61 @@ function report(error: unknown) {
   showScreen(screens, "lobby");
 }
 
-async function startMatch() {
+async function startMatch(next: MatchSeries) {
   if (transition) return;
   transition = true;
   start.disabled = lobbyStart.disabled = true;
+  series = next;
   showScreen(screens, "battle");
   try {
     await game.changeScene("match");
     updateCameraLayout?.();
     paintOverlay?.();
-    overlay.hidden = true;
   } catch (error) {
+    await releaseBattle().catch(console.error);
+    series = undefined;
     report(error);
   } finally {
     start.disabled = false;
     transition = false;
     updateReady();
+  }
+}
+
+async function releaseBattle() {
+  await game.changeScene("briefing");
+  get("sites").replaceChildren();
+  touchView.layer.hidden = true;
+  delete app.dataset.phase;
+  delete app.dataset.map;
+}
+
+async function showResult(match: MatchSeries) {
+  transition = true;
+  const winner = match.winner;
+  const last = match.rounds.at(-1)!;
+  const { blue, red } = match.wins;
+  display(get("result-round"), winner === null ? `第${match.rounds.length}ラウンド終了` : "試合結果");
+  const leader = winner ?? last.winner;
+  display(headline, leader === "draw" ? "引き分け" : `${names[leader]}チームの勝利`);
+  display(mission, match.setup.rule === "single"
+    ? `青 ${last.scores.blue} — ${last.scores.red} 赤`
+    : `ラウンド勝利数　青 ${blue} — ${red} 赤`);
+  get("round-results").replaceChildren(...(match.setup.rule === "single" ? [] : match.rounds.map(({ winner, scores }) => {
+    const row = document.createElement("li");
+    row.textContent = `青 ${scores.blue} — ${scores.red} 赤 · ${winner === "draw" ? "引き分け" : `${names[winner]}の勝利`}`;
+    return row;
+  })));
+  display(start, winner === null ? "次のラウンド" : "再戦");
+  for (const button of [start, get<HTMLButtonElement>("result-title"), get<HTMLButtonElement>("result-setup")]) button.disabled = true;
+  showScreen(screens, "result");
+  try {
+    await releaseBattle();
+  } catch (error) {
+    report(error);
+  } finally {
+    transition = false;
+    for (const button of [start, get<HTMLButtonElement>("result-title"), get<HTMLButtonElement>("result-setup")]) button.disabled = false;
   }
 }
 const choices = get("character-choice");
@@ -388,22 +426,57 @@ lobbyReady.addEventListener("click", () => {
   ready = !ready;
   updateReady();
 }, { signal: life.signal });
-lobbyStart.addEventListener("click", startMatch, { signal: life.signal });
+lobbyStart.addEventListener("click", () => {
+  if (ready && rendererReady) void startMatch(new MatchSeries(setup));
+}, { signal: life.signal });
 skipPreparation.addEventListener("click", () => {
   preparation?.skipPreparation();
 }, { signal: life.signal });
-start.addEventListener("click", startMatch, { signal: life.signal });
+start.addEventListener("click", () => {
+  if (!series) return;
+  void startMatch(series.winner === null ? series : new MatchSeries(series.setup));
+}, { signal: life.signal });
+for (const [id, screen] of [["result-title", "title"], ["result-setup", "setup"]] as const) {
+  get(id).addEventListener("click", () => {
+    series = undefined;
+    showScreen(screens, screen);
+  }, { signal: life.signal });
+}
+
+get("leave-battle").addEventListener("click", () => {
+  if (transition) return;
+  game.pause();
+  leaveDialog.returnValue = "";
+  leaveDialog.showModal();
+}, { signal: life.signal });
+leaveDialog.addEventListener("close", async () => {
+  if (leaveDialog.returnValue !== "leave") {
+    resumeBattle();
+    return;
+  }
+  transition = true;
+  try {
+    await releaseBattle();
+    series = undefined;
+    showScreen(screens, "title");
+  } catch (error) {
+    report(error);
+  } finally {
+    game.resume();
+    transition = false;
+  }
+}, { signal: life.signal });
+function resumeBattle() {
+  game.resume();
+  if (!app.hidden) (preparationView.hidden ? game.element : preparationTitle).focus({ preventScroll: true });
+}
 function openSettings() {
   if (transition || dialog.open) return;
   game.pause();
   dialog.showModal();
 }
 for (const id of ["open-settings", "title-settings"]) get(id).addEventListener("click", openSettings, { signal: life.signal });
-dialog.addEventListener("close", () => {
-  game.resume();
-  if (active) (preparationView.hidden ? game.element : preparationTitle).focus({ preventScroll: true });
-  if (resultShown) touchView.layer.hidden = true;
-}, { signal: life.signal });
+dialog.addEventListener("close", resumeBattle, { signal: life.signal });
 function dispose() {
   life.abort();
   updateCameraLayout = undefined;

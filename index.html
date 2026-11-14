@@ -77,6 +77,20 @@
       </div>
     </section>
 
+    <section id="result-screen" class="flow-screen" aria-labelledby="headline" hidden>
+      <div class="flow-panel">
+        <p id="result-round" class="flow-muted"></p>
+        <h1 id="headline" tabindex="-1" data-screen-focus></h1>
+        <p id="mission" class="flow-muted"></p>
+        <ol id="round-results"></ol>
+        <div class="flow-actions">
+          <button id="result-title" class="secondary" type="button">タイトルへ</button>
+          <button id="result-setup" class="secondary" type="button">対戦設定へ</button>
+          <button id="start" class="primary" type="button">再戦</button>
+        </div>
+      </div>
+    </section>
+
     <main id="app" aria-label="対戦" hidden>
       <header class="match-header">
         <div class="wordmark">STRAIDHOLD <span>試作 0.2.4</span></div>
@@ -85,7 +99,10 @@
           <time id="clock">05:00</time>
           <span class="score red"><strong id="red-score">0</strong> <span>赤</span></span>
         </div>
-        <button id="open-settings" class="secondary" type="button">操作設定</button>
+        <div class="match-actions">
+          <button id="open-settings" class="secondary" type="button">操作設定</button>
+          <button id="leave-battle" class="secondary" type="button">タイトルへ</button>
+        </div>
       </header>
       <div class="tactical-strip">
         <section id="roster" aria-label="チームの生存状況"></section>
@@ -103,15 +120,9 @@
         <section id="preparation" class="overlay" aria-labelledby="preparation-heading" hidden>
           <div class="preparation-panel">
             <h2 id="preparation-heading" tabindex="-1">ラウンド準備</h2>
+            <span id="round-status"></span>
             <output id="preparation-time" aria-label="開始までの秒数" aria-live="off"></output>
             <button id="skip-preparation" class="primary" type="button">準備をスキップ</button>
-          </div>
-        </section>
-        <section id="overlay" class="overlay" aria-label="マッチメニュー" hidden>
-          <div class="briefing">
-            <h1 id="headline">Straidhold</h1>
-            <p id="mission">占領装置を設置し、起動まで拠点を守れ。</p>
-            <button id="start" class="primary" type="button" disabled>試合開始</button>
           </div>
         </section>
         <div id="rotate" aria-hidden="true">横画面にすると操作しやすくなります</div>
@@ -125,6 +136,16 @@
         <div id="input-hint" class="input-hint"></div>
       </footer>
     </main>
+
+    <dialog id="leave-dialog" aria-labelledby="leave-heading">
+      <form method="dialog">
+        <h2 id="leave-heading">対戦を終了しますか？</h2>
+        <div class="flow-actions">
+          <button value="stay" class="secondary" autofocus>対戦に戻る</button>
+          <button value="leave" class="primary">タイトルへ</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="settings" aria-labelledby="settings-title">
       <form method="dialog">

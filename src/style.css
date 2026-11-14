@@ -53,7 +53,8 @@ body { margin: 0; }
 .score strong, #clock { font-size: 19px; font-weight: 750; }
 .score.blue { color: var(--blue); border-bottom: 2px solid var(--blue); }
 .score.red { color: var(--red); border-bottom: 2px solid var(--red); }
-#open-settings { justify-self: end; }
+.match-actions { display: flex; justify-content: end; flex-wrap: wrap; gap: 4px; }
+#leave-battle { font-size: 11px; }
 
 button, select { font: inherit; }
 button {
@@ -120,20 +121,6 @@ button:disabled { opacity: .6; cursor: wait; }
   padding: 12px;
   background: radial-gradient(ellipse at center, #09152388 0, #091320cf 75%);
 }
-.briefing {
-  width: min(100%, 500px);
-  max-height: 100%;
-  overflow: auto;
-  padding: clamp(14px, 3.8vh, 34px) clamp(18px, 4vw, 38px);
-  background: #0e1d2cf2;
-  border: 1px solid #3c6073;
-  border-top: 3px solid var(--blue);
-  border-radius: 6px;
-  box-shadow: 0 12px 55px #03060c99;
-}
-.eyebrow { margin: 0 0 .45em; color: var(--blue); font-size: 12px; font-weight: 750; letter-spacing: .10em; }
-h1 { margin: 0; font-size: clamp(27px, 7vh, 62px); line-height: 1.02; letter-spacing: -.05em; }
-#mission { color: var(--muted); margin: .6em 0 1em; font-size: clamp(12px, 2.5vh, 16px); }
 .respawn {
   position: absolute;
   top: 13%;
@@ -341,24 +328,10 @@ dialog button { justify-self: end; }
   .map-picker { margin-bottom: 8px; gap: 4px 8px; }
   #map-description { display: none; }
   #map-preview svg { height: 34px; }
-  .briefing { padding-block: 8px; }
 }
 @media (max-width: 680px) {
   .site-strip { grid-template-columns: repeat(min(var(--site-count, 3), 4), minmax(0, 1fr)); }
 }
-@media (max-height: 420px) {
-  .briefing {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 4px 8px;
-  }
-  .briefing > :is(.eyebrow, h1, #mission) { grid-column: 1 / -1; margin: 0; }
-  .map-picker { display: contents; }
-  .briefing #start { grid-column: 3; grid-row: 4; padding: .42em .7em; white-space: nowrap; font-size: 13px; }
-  #map-preview { grid-row: 5; }
-}
-
 .flow-screen {
   min-height: 100dvh;
   display: grid;
@@ -445,3 +418,11 @@ dialog button { justify-self: end; }
 .preparation-panel h2 { margin: 0; font-size: clamp(1rem, 4vw, 1.5rem); }
 .preparation-panel output { color: var(--gold); min-width: 2ch; font-size: 1.7rem; font-weight: 750; font-variant-numeric: tabular-nums; }
 .preparation-panel button { font-size: .85rem; }
+
+#round-results { color: var(--muted); padding-inline-start: 1.5rem; }
+#round-results:empty, #round-status:empty { display: none; }
+#round-status { color: var(--muted); font-size: .8rem; }
+@media (max-width: 480px) {
+  .match-actions { gap: 2px; }
+  .match-actions button { padding: 3px 5px; }
+}

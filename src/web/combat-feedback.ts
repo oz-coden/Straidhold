@@ -21,7 +21,7 @@ export function feedMessage(event: Exclude<CombatEvent, { kind: "damage" }>, pla
     const defeated = participantLabel(target);
     const assisted = assists.includes(player);
     const personal = assisted || attacker === player || target === player;
-    const milestone = STREAK_MILESTONES.includes(streak);
+    const milestone = STREAK_MILESTONES.some((count) => count === streak);
     const stopped = stoppedStreak >= STREAK_MILESTONES[0];
     const defeat = target === player ? `${killer} に撃破された`
       : attacker === player ? `${defeated} を撃破` : `${killer} が ${defeated} を撃破`;

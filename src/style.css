@@ -94,7 +94,9 @@ button:disabled { opacity: .6; cursor: wait; }
 .site progress::-webkit-progress-value { background: var(--progress); }
 .site progress::-moz-progress-bar { background: var(--progress); }
 
-.battlefield { position: relative; overflow: hidden; background: #080f18; border: 1px solid var(--edge); border-radius: 7px; }
+.battlefield {
+  --streak-side-space: max(8.5rem, calc(clamp(118px, 18vw, 248px) + 12px));
+  position: relative; overflow: hidden; background: #080f18; border: 1px solid var(--edge); border-radius: 7px; }
 #game, #map-labels, #touch-controls, .overlay { position: absolute; inset: 0; }
 #game > div { min-height: 0 !important; }
 #game canvas { display: block; touch-action: none; }
@@ -291,6 +293,7 @@ dialog button { justify-self: end; }
   .roster-unit[data-state="alive"]::after { width: 9px; height: 10px; }
 }
 @media (max-height: 420px), (max-width: 480px) {
+  .battlefield { --streak-side-space: max(6.25rem, calc(clamp(92px, 19vw, 148px) + 9px)); }
   .minimap { width: clamp(92px, 19vw, 148px); top: 5px; right: 5px; }
   #app[data-input-mode="touch"] .minimap:not([data-map="training"]) { width: clamp(76px, 15vw, 112px); }
   .site-icon { line-height: 13px; min-width: 15px; }
@@ -540,4 +543,56 @@ dialog button { justify-self: end; }
 #match-awards li[data-team="red"] strong { color: var(--red); }
 @media (max-width: 480px) {
   #match-awards li:not([data-award="team-mvp"]) { grid-column: 1 / -1; }
+}
+
+#streak-banner {
+  --streak-accent: #85ddf8;
+  position: absolute;
+  z-index: 4;
+  top: 6px;
+  left: 50%;
+  translate: -50%;
+  scale: var(--streak-scale, 1);
+  inline-size: max-content;
+  max-inline-size: min(10.5rem, calc(100% - 2 * var(--streak-side-space)));
+  padding: 3px 8px;
+  border: 1px solid #6f9bb2;
+  border-top: 2px solid var(--streak-accent);
+  border-radius: 5px;
+  background: #0b192aeb;
+  color: var(--streak-accent);
+  text-align: center;
+  font-size: clamp(11px, 2.2vmin, 17px);
+  font-weight: 800;
+  line-height: 1.1;
+  pointer-events: none;
+}
+#streak-banner[data-count="5"][data-kind="milestone"] {
+  --streak-accent: #ffe0a1;
+  border-top-width: 3px;
+  background: #302616ed;
+}
+#streak-banner[data-count="10"][data-kind="milestone"] {
+  --streak-accent: #fff2bd;
+  border-color: #dfbb68;
+  background: #34264bed;
+  box-shadow: 0 0 10px #ffd89155, inset 0 0 7px #ffd89133;
+}
+#streak-banner[data-kind="shutdown"] {
+  --streak-accent: #ffb09d;
+  background: #341f28ed;
+  border-color: #c97364;
+  font-size: clamp(9px, 1.6vmin, 12px);
+}
+#streak-banner:not([hidden]) ~ .respawn { top: max(13%, 48px); }
+.battlefield:has(#streak-banner:not([hidden])) #combat-feed {
+  width: min(43%, 16rem, calc(var(--streak-side-space) - 10px));
+}
+@media (orientation: portrait) and (pointer: coarse) {
+  #streak-banner { top: 23px; }
+  #streak-banner:not([hidden]) ~ .respawn { top: max(13%, 64px); }
+}
+#streak-banner strong { display: block; margin-bottom: 2px; font-size: 1.18em; letter-spacing: .06em; }
+@media (prefers-reduced-motion: reduce) {
+  #streak-banner { scale: none; }
 }

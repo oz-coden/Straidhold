@@ -14,6 +14,7 @@ import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./
 import { resultsPanel } from "./web/match-results.ts";
 import { createHitFeedback } from "./web/hit-feedback.ts";
 import { createCombatFeed } from "./web/combat-feedback.ts";
+import { createStreakPresentation } from "./web/streak-presentation.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
 import { CHARACTERS, initialMatchSetup, MatchSeries, PLAYER_ID, RoundPreparation, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
@@ -165,6 +166,7 @@ game.scene("match", (context) => {
     fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false, match.rounds.length + 1);
   const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
   const feed = createCombatFeed(get("combat-feed"), player.id, player.team);
+  const streakPresentation = createStreakPresentation(get("streak-banner"), player.id, HZ);
   const feedback = createHitFeedback(get("hit-marker"), get("damage-edge"), get("vitals"), player.id);
   const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
   const fog = createFog(game, get("battlefield"), vision, arena);
@@ -239,6 +241,7 @@ game.scene("match", (context) => {
   });
   context.onDispose(() => {
     feed.dispose();
+    streakPresentation.clear();
     feedback.dispose();
     fog.dispose();
     minimap.dispose();
@@ -303,6 +306,7 @@ game.scene("match", (context) => {
       : battle.tick < player.attackAt ? "攻撃クールダウン" : hasTarget ? "攻撃対象を捕捉" : "攻撃待機");
     roster.paint();
     feed.update(battle.combatEvents, battle.tick);
+    if (battle.result === null) streakPresentation.update(battle.combatEvents, battle.tick);
     battle.sites.forEach(({ id, owner, device }, i) => {
       const { row, state, progress } = sites[i];
       row.dataset.owner = owner ?? "neutral";
@@ -331,6 +335,7 @@ game.scene("match", (context) => {
     });
     if (battle.result && !finished) {
       finished = true;
+      streakPresentation.clear();
       touchView.layer.hidden = true;
       match.finishRound({ winner: battle.result, scores: battle.scores, participants: battle.participantStats() });
       void showResult(match);

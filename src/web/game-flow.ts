@@ -16,6 +16,7 @@ export const CHARACTERS = {
   support: "サポート",
 } as const;
 export type CharacterId = keyof typeof CHARACTERS;
+export const PLAYER_ID = "blue-2";
 
 export interface MatchSetup {
   readonly arena: Arena;

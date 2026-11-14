@@ -391,3 +391,41 @@ dialog button { justify-self: end; }
 @media (max-width: 370px) {
   .title-menu { grid-template-columns: 1fr; }
 }
+
+.character-choice {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--edge);
+}
+.character-choice label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 8px;
+  background: #182b3c;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.character-choice label:has(:checked) { border-color: var(--blue); }
+.lobby-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.lobby-teams section { min-width: 0; color: var(--blue); }
+.lobby-teams section[data-team="red"] { color: var(--red); }
+.lobby-teams h2 { margin: 0 0 5px; font-size: .95rem; }
+.lobby-teams ol { list-style: none; margin: 0; padding: 0; }
+.lobby-teams li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 8px;
+  padding: 5px 7px;
+  border-top: 1px solid var(--edge);
+  color: #e8f3fc;
+  font-size: .9rem;
+}
+.lobby-teams small { color: var(--muted); }
+#lobby-ready[aria-pressed="true"] { border-color: var(--blue); }

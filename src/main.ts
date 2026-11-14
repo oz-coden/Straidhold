@@ -13,15 +13,20 @@ import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
-import { initialMatchSetup, RULES, showScreen, type RuleId } from "./web/game-flow.ts";
+import { CHARACTERS, initialMatchSetup, PLAYER_ID, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
 import { settingsPanel, type InputMode } from "./web/settings.ts";
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = get("app");
 const screens = {
-  title: get("title-screen"), setup: get("setup-screen"), battle: app,
+  title: get("title-screen"), setup: get("setup-screen"), character: get("character-screen"),
+  lobby: get("lobby-screen"), battle: app,
 };
-const setupNext = get<HTMLButtonElement>("setup-next");
+const lobbyStart = get<HTMLButtonElement>("lobby-start");
+const lobbyReady = get<HTMLButtonElement>("lobby-ready");
+const lobbyError = get("lobby-error");
+let ready = false;
+let rendererReady = false;
 let updateCameraLayout: (() => void) | undefined;
 let paintOverlay: (() => void) | undefined;
 const game = new Game<"briefing" | "match">({
@@ -145,8 +150,8 @@ game.scene("match", (context) => {
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
   const battle = new Battle(context.scene, atlas, seconds, (fighter, state) =>
-    fighter.id === "blue-2" ? input.sample(fighter.position) : ai(fighter, state), arena);
-  const player = battle.fighters[2];
+    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena);
+  const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
   const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
   const fog = createFog(game, get("battlefield"), vision, arena);
   const minimap = createMinimap(game, get("battlefield"), battle, player, vision, fog.mask);
@@ -273,14 +278,15 @@ game.scene("match", (context) => {
 
 function report(error: unknown) {
   console.error(error);
-  display(mission, "戦場を読み込めませんでした。ページを再読み込みしてください。");
-  overlay.hidden = false;
+  lobbyError.textContent = "戦場を読み込めませんでした。ページを再読み込みしてください。";
+  lobbyError.hidden = false;
+  showScreen(screens, "lobby");
 }
 
 async function startMatch() {
   if (transition) return;
   transition = true;
-  start.disabled = setupNext.disabled = true;
+  start.disabled = lobbyStart.disabled = true;
   showScreen(screens, "battle");
   try {
     await game.changeScene("match");
@@ -290,13 +296,64 @@ async function startMatch() {
   } catch (error) {
     report(error);
   } finally {
-    start.disabled = setupNext.disabled = false;
+    start.disabled = false;
     transition = false;
+    updateReady();
   }
 }
-for (const button of [start, setupNext]) button.addEventListener("click", startMatch, { signal: life.signal });
-get("solo").addEventListener("click", () => showScreen(screens, "setup"), { signal: life.signal });
-get("setup-back").addEventListener("click", () => showScreen(screens, "title"), { signal: life.signal });
+const choices = get("character-choice");
+const characterIds = Object.keys(CHARACTERS) as CharacterId[];
+for (const id of characterIds) {
+  const label = document.createElement("label");
+  const input = document.createElement("input");
+  input.type = "radio";
+  input.name = "character";
+  input.value = id;
+  input.checked = id === setup.character;
+  input.addEventListener("change", () => {
+    if (input.checked) setup = { ...setup, character: id };
+  }, { signal: life.signal });
+  label.append(input, CHARACTERS[id]);
+  choices.append(label);
+}
+
+const playerStatus = document.createElement("small");
+for (const team of ["blue", "red"] as const) {
+  const list = get(`lobby-${team}`);
+  characterIds.forEach((_, slot) => {
+    const row = document.createElement("li");
+    const playerSlot = `${team}-${slot}` === PLAYER_ID;
+    row.append(playerSlot ? document.createElement("strong") : document.createElement("span"));
+    row.firstElementChild!.textContent = playerSlot ? "あなた" : `AI ${slot + 1}`;
+    const status = playerSlot ? playerStatus : document.createElement("small");
+    if (!playerSlot) status.textContent = "準備完了";
+    row.append(status);
+    list.append(row);
+  });
+}
+function updateReady() {
+  lobbyReady.setAttribute("aria-pressed", String(ready));
+  lobbyReady.textContent = ready ? "準備を取り消す" : "準備完了";
+  playerStatus.textContent = `${CHARACTERS[setup.character]} · ${ready ? "準備完了" : "準備中"}`;
+  lobbyStart.disabled = !ready || !rendererReady || transition;
+}
+function openLobby() {
+  ready = false;
+  display(get("lobby-summary"), `${setup.arena.name} · ${RULES[setup.rule].label}`);
+  updateReady();
+  showScreen(screens, "lobby");
+}
+for (const [id, screen] of [
+  ["solo", "setup"], ["setup-back", "title"], ["setup-next", "character"],
+  ["character-back", "setup"], ["lobby-back", "character"],
+] as const) get(id).addEventListener("click", () => showScreen(screens, screen), { signal: life.signal });
+get("character-next").addEventListener("click", openLobby, { signal: life.signal });
+lobbyReady.addEventListener("click", () => {
+  ready = !ready;
+  updateReady();
+}, { signal: life.signal });
+lobbyStart.addEventListener("click", startMatch, { signal: life.signal });
+start.addEventListener("click", startMatch, { signal: life.signal });
 function openSettings() {
   if (transition || dialog.open) return;
   game.pause();
@@ -321,4 +378,11 @@ window.addEventListener("pagehide", (event) => {
 }, { signal: life.signal });
 import.meta.hot?.dispose(dispose);
 
-game.run("briefing").then(() => { start.disabled = setupNext.disabled = false; }).catch(report);
+game.run("briefing").then(() => {
+  rendererReady = true;
+  updateReady();
+}).catch((error: unknown) => {
+  console.error(error);
+  lobbyError.textContent = "戦場を読み込めませんでした。ページを再読み込みしてください。";
+  lobbyError.hidden = false;
+});

@@ -35,7 +35,44 @@
         </div>
         <div class="flow-actions">
           <button id="setup-back" class="secondary" type="button">戻る</button>
-          <button id="setup-next" class="primary" type="button" disabled>試合開始</button>
+          <button id="setup-next" class="primary" type="button">キャラクター選択</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="character-screen" class="flow-screen" aria-labelledby="character-heading" hidden>
+      <div class="flow-panel">
+        <h1 id="character-heading" tabindex="-1" data-screen-focus>キャラクター選択</h1>
+        <p class="flow-muted">試作版ではすべてのクラスが同じ性能で戦います。</p>
+        <fieldset id="character-choice" class="character-choice">
+          <legend>クラス</legend>
+        </fieldset>
+        <div class="flow-actions">
+          <button id="character-back" class="secondary" type="button">戻る</button>
+          <button id="character-next" class="primary" type="button">対戦ロビーへ</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="lobby-screen" class="flow-screen" aria-labelledby="lobby-heading" hidden>
+      <div class="flow-panel">
+        <h1 id="lobby-heading" tabindex="-1" data-screen-focus>対戦ロビー</h1>
+        <p id="lobby-summary" class="flow-muted"></p>
+        <div class="lobby-teams">
+          <section aria-labelledby="lobby-blue-heading" data-team="blue">
+            <h2 id="lobby-blue-heading">BLUE</h2>
+            <ol id="lobby-blue"></ol>
+          </section>
+          <section aria-labelledby="lobby-red-heading" data-team="red">
+            <h2 id="lobby-red-heading">RED</h2>
+            <ol id="lobby-red"></ol>
+          </section>
+        </div>
+        <p id="lobby-error" role="alert" hidden></p>
+        <div class="flow-actions">
+          <button id="lobby-back" class="secondary" type="button">戻る</button>
+          <button id="lobby-ready" class="secondary" type="button" aria-pressed="false">準備完了</button>
+          <button id="lobby-start" class="primary" type="button" disabled>試合開始</button>
         </div>
       </div>
     </section>

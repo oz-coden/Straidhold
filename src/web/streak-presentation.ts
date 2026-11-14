@@ -22,7 +22,7 @@ export function createStreakPresentation(host: HTMLElement, player: string, tick
       for (const event of events) {
         if (event.sequence <= lastSequence) continue;
         lastSequence = event.sequence;
-        for (const notice of personalStreakNotices(event, player)) queue.enqueue(notice);
+        for (const notice of personalStreakNotices(event, player)) queue.enqueue(notice, tick);
       }
       const frame = queue.frame(tick);
       banner.paint(frame?.notice, frame?.opacity, frame?.scale);

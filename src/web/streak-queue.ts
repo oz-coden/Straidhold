@@ -17,8 +17,24 @@ export function createStreakQueue(ticksPerSecond: number) {
   const pending: StreakNotice[] = [];
   let active: { notice: StreakNotice; start: number } | undefined;
 
+  function advance(tick: number) {
+    if (active) {
+      const { seconds } = active.notice.kind === "shutdown" ? presentation.shutdown : presentation[active.notice.count];
+      if (tick - active.start >= Math.round(seconds * ticksPerSecond)) active = undefined;
+    }
+    if (!active) {
+      const notice = pending.shift();
+      if (notice) active = { notice, start: tick };
+    }
+  }
+
   return {
-    enqueue(notice: StreakNotice) {
+    enqueue(notice: StreakNotice, tick: number) {
+      advance(tick);
+      if (!active) {
+        active = { notice, start: tick };
+        return;
+      }
       if (pending.length >= STREAK_QUEUE_LIMIT) {
         const lowest = Math.min(...pending.map(priority));
         if (priority(notice) <= lowest) return;
@@ -27,15 +43,8 @@ export function createStreakQueue(ticksPerSecond: number) {
       pending.push(notice);
     },
     frame(tick: number) {
-      if (active) {
-        const { seconds } = active.notice.kind === "shutdown" ? presentation.shutdown : presentation[active.notice.count];
-        if (tick - active.start >= Math.round(seconds * ticksPerSecond)) active = undefined;
-      }
-      if (!active) {
-        const notice = pending.shift();
-        if (!notice) return;
-        active = { notice, start: tick };
-      }
+      advance(tick);
+      if (!active) return;
       const { notice, start } = active;
       const { seconds, scale } = notice.kind === "shutdown" ? presentation.shutdown : presentation[notice.count];
       const elapsed = (tick - start) / ticksPerSecond;

@@ -200,8 +200,11 @@ export class Battle {
     const hits: Shot[] = [];
     for (const fighter of this.fighters) {
       if (fighter.hp <= 0) continue;
-      fighter.target = selectTarget(this.collisions, fighter, this.fighters, fighter.command.aim, this.arena, this.tick);
-      if (fighter.target && fighter.command.attack && this.tick >= fighter.attackAt) {
+      const { aim, attack } = fighter.command;
+      fighter.target = aim || attack
+        ? selectTarget(this.collisions, fighter, this.fighters, aim, this.arena, this.tick)
+        : undefined;
+      if (fighter.target && attack && this.tick >= fighter.attackAt) {
         fighter.attackAt = this.tick + fighter.profile.attackTicks;
         hits.push({
           tick: this.tick, from: fighter, to: fighter.target,

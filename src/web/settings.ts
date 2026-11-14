@@ -4,13 +4,14 @@ type StickMode = "fixed" | "floating" | "follow";
 export interface Settings {
   mode: InputMode | "auto";
   stick: StickMode;
+  aimStick: StickMode;
   size: number;
   opacity: number;
   deadZone: number;
 }
 
 const KEY = "straidhold.controls";
-const defaults: Settings = { mode: "auto", stick: "floating", size: 44, opacity: 76, deadZone: 15 };
+const defaults: Settings = { mode: "auto", stick: "floating", aimStick: "floating", size: 44, opacity: 76, deadZone: 15 };
 const modes = ["auto", "keyboard", "touch", "gamepad"] as const;
 const sticks = ["fixed", "floating", "follow"] as const;
 
@@ -29,6 +30,7 @@ function read(): Settings {
     return {
       mode: option(data.mode, modes, defaults.mode),
       stick: option(data.stick, sticks, defaults.stick),
+      aimStick: option(data.aimStick, sticks, defaults.aimStick),
       size: slider(data.size, 24, 68, defaults.size),
       opacity: slider(data.opacity, 25, 100, defaults.opacity),
       deadZone: slider(data.deadZone, 0, 45, defaults.deadZone),
@@ -43,6 +45,7 @@ export function settingsPanel(dialog: HTMLDialogElement, change: (settings: Sett
   const form = dialog.querySelector("form")!;
   const selectMode = form.elements.namedItem("mode") as HTMLSelectElement;
   const selectStick = form.elements.namedItem("stick") as HTMLSelectElement;
+  const selectAimStick = form.elements.namedItem("aimStick") as HTMLSelectElement;
   const size = form.elements.namedItem("size") as HTMLInputElement;
   const opacity = form.elements.namedItem("opacity") as HTMLInputElement;
   const deadZone = form.elements.namedItem("deadZone") as HTMLInputElement;
@@ -54,6 +57,7 @@ export function settingsPanel(dialog: HTMLDialogElement, change: (settings: Sett
   }
   selectMode.value = settings.mode;
   selectStick.value = settings.stick;
+  selectAimStick.value = settings.aimStick;
   size.valueAsNumber = settings.size;
   opacity.valueAsNumber = settings.opacity;
   deadZone.valueAsNumber = settings.deadZone;
@@ -61,6 +65,7 @@ export function settingsPanel(dialog: HTMLDialogElement, change: (settings: Sett
   form.addEventListener("input", () => {
     settings.mode = option(selectMode.value, modes, defaults.mode);
     settings.stick = option(selectStick.value, sticks, defaults.stick);
+    settings.aimStick = option(selectAimStick.value, sticks, defaults.aimStick);
     settings.size = size.valueAsNumber;
     settings.opacity = opacity.valueAsNumber;
     settings.deadZone = deadZone.valueAsNumber;

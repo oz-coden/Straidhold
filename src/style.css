@@ -175,7 +175,7 @@ h1 { margin: 0; font-size: clamp(27px, 7vh, 62px); line-height: 1.02; letter-spa
 #deploy-state[data-ready="true"] { color: var(--gold); }
 .input-hint { text-align: right; color: var(--muted); font-size: 11px; }
 
-#stick, .touch-button {
+.touch-stick, .touch-button {
   position: absolute;
   translate: -50% -50%;
   display: grid;
@@ -187,7 +187,7 @@ h1 { margin: 0; font-size: clamp(27px, 7vh, 62px); line-height: 1.02; letter-spa
   font-size: 12px;
   font-weight: 800;
 }
-#knob {
+.stick-knob {
   position: absolute;
   inset: 50% auto auto 50%;
   translate: -50% -50%;
@@ -197,8 +197,10 @@ h1 { margin: 0; font-size: clamp(27px, 7vh, 62px); line-height: 1.02; letter-spa
   border-radius: 50%;
   background: #75cfff99;
 }
-#touch-fire { color: #ffe4cb; border-color: #ffba8f; background: #5b3725c9; }
-.touch-button[data-active="true"] { box-shadow: inset 0 0 0 3px #ffffffaa; }
+.touch-stick { opacity: var(--stick-opacity, .76); }
+.touch-stick[data-active="true"] { box-shadow: inset 0 0 0 2px currentColor; }
+#aim-stick { color: #ffc7a0; border-color: #ffba8f; background: #5b3725aa; }
+#aim-knob { border-color: #ffe3cf; background: #ffa16caa; }
 #touch-deploy[data-ready="true"] { color: var(--gold); border-color: var(--gold); }
 
 dialog {

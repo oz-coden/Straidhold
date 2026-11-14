@@ -43,7 +43,10 @@ const start = get<HTMLButtonElement>("start");
 const dialog = get<HTMLDialogElement>("settings");
 const life = new AbortController();
 const touchView = {
-  layer: get("touch-controls"), stick: get("stick"), knob: get("knob"), fire: get("touch-fire"), deploy: get("touch-deploy"),
+  layer: get("touch-controls"),
+  move: { base: get("stick"), knob: get("knob") },
+  aim: { base: get("aim-stick"), knob: get("aim-knob") },
+  deploy: get("touch-deploy"),
 };
 function siteHud(arena: Arena) {
   const host = get("sites");
@@ -80,7 +83,7 @@ function showVitals(id: "hp" | "shield", value: number) {
 const names = { blue: "青", red: "赤", neutral: "中立" };
 const hints: Record<InputMode, string> = {
   keyboard: "WASD 移動 · 左クリック 攻撃 · E 設置",
-  touch: "左スティック 移動 · 攻撃をドラッグして照準",
+  touch: "左スティック 移動 · 右スティック 方向を指定して攻撃",
   gamepad: "左/右スティック 移動/照準 · RT/R1 攻撃 · 西ボタン 設置",
 };
 function announceMode(mode: InputMode) {

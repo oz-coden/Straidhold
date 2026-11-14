@@ -1,45 +1,57 @@
 import {
   Action, defineActions, Game, GamepadBindings, GamepadButton, KeyboardBindings, KeyCode,
-  type Point, type SceneContext, type Viewport,
+  type Point, type SceneContext, type Viewport, type VirtualStick,
 } from "@simpludify/web";
 import { toward } from "../rules/arena.ts";
 import { ZERO, type Command } from "../rules/command.ts";
 import type { InputMode, Settings } from "./settings.ts";
+import { manualTouchAim } from "./touch-attack.ts";
 
 const Keyboard = defineActions({ move: Action.axis2D(), deploy: Action.button() });
-const Touch = defineActions({ move: Action.axis2D(), fire: Action.button(), deploy: Action.button() });
+const Touch = defineActions({ move: Action.axis2D(), aim: Action.axis2D(), deploy: Action.button() });
 const Pad = defineActions({ move: Action.axis2D(), aim: Action.axis2D(), fire: Action.button(), deploy: Action.button() });
 const gameplayKeys = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "KeyE"]);
 const hasDirection = (point: Point) => point.x !== 0 || point.y !== 0;
 type MatchGame = Game<"briefing" | "match">;
 
+interface StickView {
+  base: HTMLElement;
+  knob: HTMLElement;
+}
+
 export interface TouchView {
   layer: HTMLElement;
-  stick: HTMLElement;
-  knob: HTMLElement;
-  fire: HTMLElement;
+  move: StickView;
+  aim: StickView;
   deploy: HTMLElement;
 }
 
-function buttonPosition(view: Viewport, kind: "fire" | "deploy") {
-  const radius = kind === "fire" ? 31 : 23;
-  const fireX = view.x + view.width - Math.max(43, view.width * 0.12);
-  return {
-    radius,
-    x: fireX - (kind === "fire" ? 0 : Math.max(56, Math.min(80, view.width * 0.23))),
-    y: view.y + Math.max(radius + 4, view.height * (kind === "fire" ? 0.75 : 0.55)),
-  };
-}
-
-function buttonRegion(surface: () => Viewport, kind: "fire" | "deploy") {
+function stickRegion(surface: () => Viewport, side: "left" | "right") {
   return {
     kind: "custom" as const,
     bounds() {
-      const { x, y, radius } = buttonPosition(surface(), kind);
+      const { width, height } = surface();
+      return { x: side === "left" ? 0 : width * 0.65, y: height * 0.46, width: width * 0.35, height: height * 0.54 };
+    },
+    contains: () => true,
+  };
+}
+
+function deployPosition({ width, height }: Viewport) {
+  const radius = 23;
+  const x = Math.min(width * 0.65 - radius, Math.max(width * 0.5, width * 0.825 - 106));
+  return { x, y: Math.max(radius + 4, height * 0.55), radius };
+}
+
+function deployRegion(surface: () => Viewport) {
+  return {
+    kind: "custom" as const,
+    bounds() {
+      const { x, y, radius } = deployPosition(surface());
       return { x: x - radius, y: y - radius, width: radius * 2, height: radius * 2 };
     },
     contains(point: Point) {
-      const { x, y, radius } = buttonPosition(surface(), kind);
+      const { x, y, radius } = deployPosition(surface());
       return Math.hypot(point.x - x, point.y - y) < radius;
     },
   };
@@ -86,21 +98,9 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
   const touchSurface = () => ({
     x: 0, y: 0, width: game.element.clientWidth, height: game.element.clientHeight,
   });
-  const moveStick = context.virtualInput.stick(touch, Touch.move, {
-    region: {
-      kind: "custom",
-      bounds() {
-        const { width, height } = touchSurface();
-        return { x: 0, y: height * 0.46, width: width * 0.35, height: height * 0.54 };
-      },
-      contains: () => true,
-    },
-    visible: false,
-  });
-  const fireButton = context.virtualInput.button(touch, Touch.fire, {
-    region: buttonRegion(touchSurface, "fire"), direction: true, radius: 42, deadZone: 0.16, holdDelay: 0.12, visible: false,
-  });
-  const deployButton = context.virtualInput.button(touch, Touch.deploy, { region: buttonRegion(touchSurface, "deploy"), visible: false });
+  const moveStick = context.virtualInput.stick(touch, Touch.move, { region: stickRegion(touchSurface, "left"), visible: false });
+  const aimStick = context.virtualInput.stick(touch, Touch.aim, { region: stickRegion(touchSurface, "right"), visible: false });
+  const deployButton = context.virtualInput.button(touch, Touch.deploy, { region: deployRegion(touchSurface), visible: false });
   let mode: InputMode = initialInputMode();
   let settings = initial;
   let mouse: { clientX: number; clientY: number } | undefined;
@@ -108,10 +108,6 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
   let mouseTravel = 0;
   let mouseHeld = false;
   let mouseTap = false;
-  let touchTap: { aim: Point | null } | undefined;
-  let touchHold = false;
-  let touchFired = false;
-  let touchAim: Point | null = null;
   let lastTouch = -Infinity;
   let padAim: Point | null = null;
   let padArmed = true;
@@ -120,10 +116,6 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
   function clearTransient() {
     mouseHeld = false;
     mouseTap = false;
-    touchTap = undefined;
-    touchHold = false;
-    touchFired = false;
-    touchAim = null;
     padAim = null;
   }
 
@@ -136,7 +128,7 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
       }
     }
     mode = next;
-    moveStick.enabled = fireButton.enabled = deployButton.enabled = mode === "touch";
+    moveStick.enabled = aimStick.enabled = deployButton.enabled = mode === "touch";
     view.layer.hidden = mode !== "touch";
     notify(mode);
   }
@@ -144,22 +136,15 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
   function updateSettings(next: Settings) {
     settings = next;
     moveStick.mode = settings.stick;
-    moveStick.radius = settings.size;
-    moveStick.deadZone = settings.deadZone / 100;
-    view.stick.style.opacity = String(settings.opacity / 100);
+    aimStick.mode = settings.aimStick;
+    for (const stick of [moveStick, aimStick]) {
+      stick.radius = settings.size;
+      stick.deadZone = settings.deadZone / 100;
+    }
+    view.layer.style.setProperty("--stick-opacity", String(settings.opacity / 100));
     setMode(settings.mode === "auto" ? mode : settings.mode);
     paint(false);
   }
-
-  fireButton.onStart(() => { touchHold = false; touchFired = false; touchAim = null; });
-  fireButton.onChange(({ direction }) => { touchAim = hasDirection(direction) ? direction : null; });
-  fireButton.onHold(() => { touchHold = true; });
-  fireButton.onCommit(({ direction }) => {
-    if (!touchFired) touchTap = { aim: hasDirection(direction) ? direction : null };
-    touchHold = false;
-    touchAim = null;
-  });
-  fireButton.onCancel(() => { touchTap = undefined; touchHold = false; touchAim = null; });
 
   const signal = context.signal;
   // Switch mode before Simpludify routes the same pointerdown on the canvas host.
@@ -203,18 +188,19 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
   window.addEventListener("resize", clearTransient, { signal });
   document.addEventListener("visibilitychange", () => { if (document.hidden) clearTransient(); }, { signal });
 
+  function paintStick(stick: VirtualStick, view: StickView) {
+    const { center, knob } = stick;
+    position(view.base, center, stick.radius);
+    view.knob.style.transform = `translate(${knob.x - center.x}px, ${knob.y - center.y}px)`;
+    view.base.dataset.active = String(stick.pressed);
+  }
+
   function paint(deployReady: boolean) {
     if (mode !== "touch") return;
-    const viewport = touchSurface();
-    const center = moveStick.center;
-    const knob = moveStick.knob;
-    position(view.stick, center, moveStick.radius);
-    view.knob.style.transform = `translate(${knob.x - center.x}px, ${knob.y - center.y}px)`;
-    const fire = buttonPosition(viewport, "fire");
-    const deploy = buttonPosition(viewport, "deploy");
-    position(view.fire, fire, fire.radius);
+    paintStick(moveStick, view.move);
+    paintStick(aimStick, view.aim);
+    const deploy = deployPosition(touchSurface());
     position(view.deploy, deploy, deploy.radius);
-    view.fire.dataset.active = String(fireButton.pressed);
     view.deploy.dataset.ready = String(deployReady);
   }
 
@@ -229,11 +215,8 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
     if (settings.mode === "auto" && mode === "gamepad" && !padSource.connected) setMode(initialInputMode());
 
     if (mode === "touch") {
-      const held = touch.value(Touch.fire) && (touchHold || touchAim !== null);
-      const tap = touchTap;
-      touchTap = undefined;
-      if (held) touchFired = true;
-      return { move: touch.value(Touch.move), aim: held ? touchAim : tap?.aim ?? null, attack: held || !!tap, deploy: touch.pressed(Touch.deploy) };
+      const direction = manualTouchAim(aimStick.pressed, touch.value(Touch.aim));
+      return { move: touch.value(Touch.move), aim: direction, attack: direction !== null, deploy: touch.pressed(Touch.deploy) };
     }
     if (mode === "gamepad") {
       if (hasDirection(aim)) padAim = aim;

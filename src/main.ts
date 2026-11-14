@@ -11,6 +11,7 @@ import { createFog } from "./web/fog.ts";
 import { createMinimap, mapPreview } from "./web/minimap.ts";
 import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
+import { resultsPanel } from "./web/match-results.ts";
 import { createHitFeedback } from "./web/hit-feedback.ts";
 import { createCombatFeed } from "./web/combat-feedback.ts";
 import { createField } from "./web/field.ts";
@@ -58,6 +59,7 @@ const start = get<HTMLButtonElement>("start");
 const dialog = get<HTMLDialogElement>("settings");
 const leaveDialog = get<HTMLDialogElement>("leave-dialog");
 const life = new AbortController();
+const results = resultsPanel(get("participant-results"), get<HTMLSelectElement>("result-round-select"), life.signal);
 const touchView = {
   layer: get("touch-controls"),
   move: { base: get("stick"), knob: get("knob") },
@@ -328,7 +330,7 @@ game.scene("match", (context) => {
     if (battle.result && !finished) {
       finished = true;
       touchView.layer.hidden = true;
-      match.finishRound({ winner: battle.result, scores: battle.scores });
+      match.finishRound({ winner: battle.result, scores: battle.scores, participants: battle.participantStats() });
       void showResult(match);
     }
   });
@@ -346,6 +348,7 @@ async function startMatch(next: MatchSeries) {
   transition = true;
   start.disabled = lobbyStart.disabled = true;
   series = next;
+  results.clear();
   showScreen(screens, "battle");
   try {
     await game.changeScene("match");
@@ -378,14 +381,16 @@ async function showResult(match: MatchSeries) {
   display(get("result-round"), winner === null ? `第${match.rounds.length}ラウンド終了` : "試合結果");
   const roundWinner = winner ?? last.winner;
   display(headline, roundWinner === "draw" ? "引き分け" : `${names[roundWinner]}チームの勝利`);
-  display(mission, match.setup.rule === "single"
-    ? `青 ${last.scores.blue} — ${last.scores.red} 赤`
-    : `ラウンド勝利数　青 ${blue} — ${red} 赤`);
+  const totals = match.scoreTotals;
+  const score = `青 ${totals.blue} — ${totals.red} 赤`;
+  display(mission, match.setup.rule === "single" ? score
+    : `ラウンド勝利数　青 ${blue} — ${red} 赤 ｜ チーム累計スコア　${score}`);
   get("round-results").replaceChildren(...(match.setup.rule === "single" ? [] : match.rounds.map(({ winner, scores }) => {
     const row = document.createElement("li");
     row.textContent = `青 ${scores.blue} — ${scores.red} 赤 · ${winner === "draw" ? "引き分け" : `${names[winner]}の勝利`}`;
     return row;
   })));
+  results.show(match);
   display(start, winner === null ? "次のラウンド" : "再戦");
   for (const button of [start, get<HTMLButtonElement>("result-title"), get<HTMLButtonElement>("result-setup")]) button.disabled = true;
   showScreen(screens, "result");
@@ -462,6 +467,8 @@ start.addEventListener("click", () => {
 for (const [id, screen] of [["result-title", "title"], ["result-setup", "setup"]] as const) {
   get(id).addEventListener("click", () => {
     series = undefined;
+    results.clear();
+    get("round-results").replaceChildren();
     showScreen(screens, screen);
   }, { signal: life.signal });
 }

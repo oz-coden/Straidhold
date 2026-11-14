@@ -16,19 +16,19 @@ test("a series counts decisive round wins and keeps a snapshot of the results", 
   const setup = initialMatchSetup(new URLSearchParams());
   const scores = { blue: 5, red: 3 };
   const single = new MatchSeries(setup);
-  single.finishRound({ winner: "draw", scores });
+  single.finishRound({ winner: "draw", scores, participants: [] });
   assert.equal(single.winner, "draw");
 
   const series = new MatchSeries({ ...setup, rule: "series" });
   for (const winner of ["blue", "draw", "red", "blue", "blue"] as const) {
     assert.equal(series.winner, null);
-    series.finishRound({ winner, scores });
+    series.finishRound({ winner, scores, participants: [] });
   }
   scores.blue = 0;
   assert.equal(series.rounds[0].scores.blue, 5);
   assert.deepEqual(series.wins, { blue: 3, red: 1 });
   assert.equal(series.winner, "blue");
-  assert.throws(() => series.finishRound({ winner: "red", scores }));
+  assert.throws(() => series.finishRound({ winner: "red", scores, participants: [] }));
 });
 
 test("preparation and countdown use fixed ticks and skipping keeps the full countdown", () => {

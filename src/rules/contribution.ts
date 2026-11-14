@@ -99,3 +99,23 @@ export class RoundStats {
     return assists;
   }
 }
+
+export function totalParticipants(rounds: readonly (readonly ParticipantStats[])[]): readonly ParticipantStats[] {
+  const totals = new Map<string, Participant & Totals>();
+  for (const round of rounds) {
+    for (const row of round) {
+      const total = totals.get(row.id);
+      if (!total) {
+        totals.set(row.id, { ...row });
+        continue;
+      }
+      total.kills += row.kills;
+      total.assists += row.assists;
+      total.deaths += row.deaths;
+      total.captures += row.captures;
+      total.installationUnits += row.installationUnits;
+      total.guardingUnits += row.guardingUnits;
+    }
+  }
+  return [...totals.values()];
+}

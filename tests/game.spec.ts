@@ -762,6 +762,9 @@ test("preparation freezes both teams and leaving releases the active round", asy
 });
 
 test("series retains round results and resets the battlefield for the next round", async ({ page }) => {
+  // Two complete simulated rounds include two renderer activations and a full countdown each.
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 640, height: 360 });
   await freezeClock(page);
   await page.goto("/?map=training&round=5");
   await page.locator("#solo").click();

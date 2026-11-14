@@ -14,7 +14,7 @@ export function participantLabel(id: string) {
   return `${team.toUpperCase()} ${Number(slot) + 1}`;
 }
 
-function feedMessage(event: Exclude<CombatEvent, { kind: "damage" }>, player: string, team: Team) {
+export function feedMessage(event: Exclude<CombatEvent, { kind: "damage" }>, player: string, team: Team) {
   if (event.kind === "defeat") {
     const { attacker, target, assists, streak, stoppedStreak } = event;
     const killer = participantLabel(attacker);
@@ -25,7 +25,7 @@ function feedMessage(event: Exclude<CombatEvent, { kind: "damage" }>, player: st
     const stopped = stoppedStreak >= STREAK_MILESTONES[0];
     const defeat = target === player ? `${killer} に撃破された`
       : attacker === player ? `${defeated} を撃破` : `${killer} が ${defeated} を撃破`;
-    const text = stopped ? `${killer} が ${defeated} の${stoppedStreak}連続キルを阻止！`
+    const text = stopped ? `${stoppedStreak}連続キル阻止！ ${killer} → ${defeated}`
       : milestone ? `${killer} が${streak}連続キル！ (${defeated} を撃破)` : defeat;
     const withMilestone = stopped && milestone ? `${text} · ${killer} が${streak}連続キル！` : text;
     return { text: assisted ? `${withMilestone}（アシスト）` : withMilestone, personal,

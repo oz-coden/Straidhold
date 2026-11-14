@@ -1,5 +1,6 @@
 import { HZ, ROUND_SECONDS } from "../rules/battle.ts";
 import type { Arena, Team } from "../rules/arena.ts";
+import { selectAwards, type Award } from "../rules/awards.ts";
 import { totalParticipants, type ParticipantStats } from "../rules/contribution.ts";
 import { arenas } from "../rules/maps.ts";
 
@@ -36,12 +37,15 @@ export interface RoundResult {
 export class MatchSeries {
   readonly setup: MatchSetup;
   private readonly completed: RoundResult[] = [];
+  private finalAwards?: readonly Award[];
 
   constructor(setup: MatchSetup) {
     this.setup = { ...setup };
   }
 
   get rounds(): readonly RoundResult[] { return this.completed; }
+
+  get awards() { return this.finalAwards; }
 
   get participantTotals() { return totalParticipants(this.completed.map(({ participants }) => participants)); }
 
@@ -78,6 +82,7 @@ export class MatchSeries {
       scores: { ...result.scores },
       participants: result.participants.map((participant) => ({ ...participant })),
     });
+    if (this.winner !== null) this.finalAwards = selectAwards(this.participantTotals);
   }
 }
 

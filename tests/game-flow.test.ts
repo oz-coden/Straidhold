@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { emptyStats } from "../src/rules/contribution.ts";
 import { HZ, ROUND_SECONDS } from "../src/rules/battle.ts";
 import { initialMatchSetup, MatchSeries, RoundPreparation } from "../src/web/game-flow.ts";
 
@@ -56,7 +57,7 @@ test("preparation and countdown use fixed ticks and skipping keeps the full coun
 test("series adds exact participant units and team scores without changing round snapshots", () => {
   const setup = initialMatchSetup(new URLSearchParams());
   const series = new MatchSeries({ ...setup, rule: "series" });
-  const row = { id: "blue-2", team: "blue" as const, slot: 2, kills: 2, assists: 1, deaths: 1, captures: 1, installationUnits: 20_000, guardingUnits: 26_667 };
+  const row = { ...emptyStats(), id: "blue-2", team: "blue" as const, slot: 2, kills: 2, assists: 1, deaths: 1, captures: 1, installationUnits: 20_000, guardingUnits: 26_667 };
   series.finishRound({ winner: "blue", scores: { blue: 7, red: 2 }, participants: [row] });
   row.kills = 4;
   series.finishRound({ winner: "red", scores: { blue: 3, red: 9 }, participants: [row] });

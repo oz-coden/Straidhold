@@ -10,7 +10,7 @@
     <section id="title-screen" class="flow-screen title-screen" aria-labelledby="title-heading">
       <div class="flow-panel title-panel">
         <h1 id="title-heading" tabindex="-1" data-screen-focus>Straidhold</h1>
-        <p class="flow-muted">5対5の拠点占領戦 <small class="title-version">v0.3.1</small></p>
+        <p class="flow-muted">5対5の拠点占領戦 <small class="title-version">v0.3.2</small></p>
         <nav class="title-menu" aria-label="メインメニュー">
           <button id="solo" class="primary" type="button">ソロモード</button>
           <button class="secondary" type="button" disabled>ストーリーモード <small>準備中</small></button>
@@ -83,6 +83,7 @@
         <h1 id="headline" tabindex="-1" data-screen-focus></h1>
         <p id="mission" class="flow-muted"></p>
         <ol id="round-results"></ol>
+        <section id="match-awards" aria-label="試合表彰" hidden></section>
         <label class="result-filter">個人成績 <select id="result-round-select"></select></label>
         <div id="participant-results" class="participant-results"></div>
         <div class="flow-actions">
@@ -113,6 +114,7 @@
         <div id="damage-edge" aria-hidden="true" hidden></div>
         <span id="hit-marker" aria-hidden="true" hidden></span>
         <ol id="combat-feed" aria-label="戦況通知"></ol>
+        <div id="streak-hud">連続キル <output id="current-streak" aria-live="off">0</output></div>
         <div id="touch-controls" hidden>
           <div id="stick" class="touch-stick" aria-label="移動スティック"><span id="knob" class="stick-knob"></span></div>
           <div id="aim-stick" class="touch-stick" aria-label="攻撃スティック"><span id="aim-knob" class="stick-knob"></span></div>

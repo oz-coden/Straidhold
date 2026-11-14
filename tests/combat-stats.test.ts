@@ -6,10 +6,10 @@ import { HQ } from "../src/rules/arena.ts";
 import { IDLE, type Command } from "../src/rules/command.ts";
 import { contributionUnits, POINT_UNITS } from "../src/rules/contribution.ts";
 
-function fixture() {
+function fixture(seconds = 30) {
   const engine = new Engine();
   const orders = new Map<string, Command>();
-  const battle = new Battle(engine.scene, "terrain.svg", 30, (fighter) => orders.get(fighter.id) ?? IDLE, undefined, true, 2);
+  const battle = new Battle(engine.scene, "terrain.svg", seconds, (fighter) => orders.get(fighter.id) ?? IDLE, undefined, true, 2);
   const step = (ticks = 1) => {
     for (let i = 0; i < ticks; i++) engine.step(STEP);
   };
@@ -176,4 +176,98 @@ test("abandoned progress is discarded and a departed installer can still earn th
   assert.equal(stats(b).guardingUnits, 0);
   assert.equal(stats(c).guardingUnits, 80 * POINT_UNITS);
   assert.equal(stats(a).guardingUnits, 0);
+});
+
+test("movement uses collision-resolved position changes and excludes spawn displacement", (t) => {
+  const { engine, orders, battle, step, stats } = fixture();
+  t.after(() => engine.dispose());
+  const fighter = battle.fighters[2];
+  step();
+  assert.equal(stats(fighter).distanceMoved, 0);
+  Object.assign(fighter.position, { x: 320, y: 272 });
+  orders.set(fighter.id, { ...IDLE, move: { x: 1, y: 0 } });
+  step(90);
+  const atWall = stats(fighter).distanceMoved;
+  assert.ok(Math.abs(atWall - (fighter.position.x - 320)) < 1e-8);
+  assert.ok(atWall > 15 && atWall < 25);
+  step(60);
+  assert.equal(stats(fighter).distanceMoved, atWall);
+  orders.clear();
+  fighter.hp = 0;
+  fighter.shield = 0;
+  fighter.actor.enabled = false;
+  fighter.downUntil = battle.tick + 2;
+  step(2);
+  assert.equal(fighter.hp, recruit.hp);
+  assert.equal(stats(fighter).distanceMoved, atWall);
+  assert.equal(stats(fighter).hpRecovered + stats(fighter).shieldRecovered, 0);
+});
+
+test("damage and recovery stats use actual capped changes in both pools", (t) => {
+  const { engine, battle, step, stats, hit } = fixture();
+  t.after(() => engine.dispose());
+  const { a, target } = attackers(battle);
+  hit(a);
+  assert.equal(stats(target).shieldDamage, 18);
+  assert.equal(stats(target).hpDamage, 0);
+  target.hp = 93;
+  Object.assign(target.position, HQ.red);
+  step(recruit.shieldDelay + 3 * HZ);
+  assert.equal(stats(target).shieldRecovered, 18);
+  assert.equal(stats(target).hpRecovered, 7);
+  Object.assign(target.position, { x: 480, y: 232 });
+  target.shield = 2;
+  target.hp = 5;
+  hit(a);
+  assert.equal(stats(target).shieldDamage, 20);
+  assert.equal(stats(target).hpDamage, 5);
+  step(target.downUntil - battle.tick);
+  assert.equal(stats(target).shieldRecovered, 18);
+  assert.equal(stats(target).hpRecovered, 7);
+});
+
+test("streak counts kills, records milestones and stops on death or the round boundary", (t) => {
+  const { engine, battle, orders, step, stats, hit } = fixture(300);
+  t.after(() => engine.dispose());
+  const { a, b, target } = attackers(battle);
+  const defeat = () => battle.combatEvents.find((event) => event.kind === "defeat")!;
+  for (let kills = 1; kills <= 10; kills++) {
+    target.shield = 0;
+    target.hp = 30;
+    Object.assign(target.position, { x: 480, y: 232 });
+    hit(b);
+    hit(a);
+    assert.equal(defeat().streak, kills);
+    assert.equal(stats(b).maxStreak, 0);
+    assert.equal(stats(b).assists, kills);
+    assert.equal(battle.currentStreak(a.id), kills);
+    step(target.downUntil - battle.tick);
+  }
+
+  // Each simultaneous shot counts as a kill. Both surviving streak counters reset.
+  Object.assign(target.position, { x: 480, y: 232 });
+  Object.assign(b.position, HQ.blue);
+  for (const fighter of [a, target]) {
+    fighter.hp = 1;
+    fighter.shield = 0;
+    fighter.attackAt = battle.tick;
+    orders.set(fighter.id, { ...IDLE, attack: true });
+  }
+  step();
+  orders.clear();
+  const exchanges = battle.combatEvents.filter((event) => event.kind === "defeat");
+  assert.deepEqual(exchanges.map(({ streak, stoppedStreak }) => [streak, stoppedStreak]), [[11, 0], [1, 10]]);
+  assert.equal(battle.currentStreak(a.id), 0);
+  assert.equal(battle.currentStreak(target.id), 0);
+  assert.equal(stats(a).maxStreak, 11);
+  step(Math.max(a.downUntil, target.downUntil) - battle.tick);
+  Object.assign(a.position, { x: 480, y: 344 });
+  Object.assign(target.position, { x: 480, y: 232 });
+  target.hp = 1;
+  target.shield = 0;
+  hit(a);
+  assert.equal(battle.currentStreak(a.id), 1);
+  step(battle.duration - battle.tick);
+  assert.equal(battle.currentStreak(a.id), 0);
+  assert.equal(stats(a).maxStreak, 11);
 });

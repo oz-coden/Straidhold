@@ -69,6 +69,7 @@ function siteHud(arena: Arena) {
   return arena.sites.map(({ id }) => {
     const row = document.createElement("div");
     row.className = "site";
+    row.dataset.owner = "neutral";
     const title = document.createElement("strong");
     const state = document.createElement("span");
     const progress = document.createElement("progress");
@@ -187,6 +188,10 @@ game.scene("match", (context) => {
     showVitals("hp", player.hp);
     showVitals("shield", player.shield);
     get("respawn").hidden = true;
+    const deployState = get("deploy-state");
+    deployState.dataset.ready = "false";
+    display(deployState, "拠点に近づくと設置可能");
+    display(get("attack-state"), "攻撃待機");
     currentInput = input;
     preparation = intro;
     app.dataset.phase = intro.phase;
@@ -353,8 +358,8 @@ async function showResult(match: MatchSeries) {
   const last = match.rounds.at(-1)!;
   const { blue, red } = match.wins;
   display(get("result-round"), winner === null ? `第${match.rounds.length}ラウンド終了` : "試合結果");
-  const leader = winner ?? last.winner;
-  display(headline, leader === "draw" ? "引き分け" : `${names[leader]}チームの勝利`);
+  const roundWinner = winner ?? last.winner;
+  display(headline, roundWinner === "draw" ? "引き分け" : `${names[roundWinner]}チームの勝利`);
   display(mission, match.setup.rule === "single"
     ? `青 ${last.scores.blue} — ${last.scores.red} 赤`
     : `ラウンド勝利数　青 ${blue} — ${red} 赤`);

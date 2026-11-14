@@ -491,10 +491,10 @@ test.describe("held touch input during capture", () => {
   });
 });
 
-test.describe("manual attack stick", () => {
+test.describe("attack stick", () => {
   test.use({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
 
-  test("neutral touch stays idle and both sticks release independently", async ({ page }) => {
+  test("switches aim while held and releases each stick independently", async ({ page }) => {
     await startMatch(page, 20);
     const cdp = await page.context().newCDPSession(page);
     type Contact = { id: number; x: number; y: number };
@@ -515,7 +515,6 @@ test.describe("manual attack stick", () => {
     const left = await center("#stick", 1);
     const right = await center("#aim-stick", 2);
     const forward = { ...left, y: left.y - 51 };
-    const north = { ...right, y: right.y - 44 };
     const south = { ...right, y: right.y + 35 };
     await touch("touchStart", [left]);
     await touch("touchMove", [forward]);
@@ -526,31 +525,41 @@ test.describe("manual attack stick", () => {
     expect(stopped.y).toBeLessThan(330);
     await expect(attack).toHaveText("攻撃待機");
 
-    // Keep a valid enemy in range while testing a tap and a held dead-zone input.
     await expect(page.locator(".minimap-unit[data-team=red][transform]").first()).toBeAttached();
+    // A short tap spans a simulation step and can fire without a drag or hold delay.
     await touch("touchStart", [right]);
+    await page.clock.runFor(45);
+    await expect(attack).toHaveText("攻撃命中");
     await touch("touchEnd", []);
-    await page.clock.runFor(50);
+    await page.clock.runFor(700);
     await expect(attack).toHaveText("攻撃待機");
+
     await touch("touchStart", [right]);
     await touch("touchMove", [{ ...right, x: right.x + 3 }]);
-    await page.clock.runFor(400);
+    await page.clock.runFor(45);
     await expect(aim).toHaveAttribute("data-active", "true");
-    await expect(attack).toHaveText("攻撃待機");
-    await touch("touchMove", [north]);
-    await page.clock.runFor(75);
     await expect(attack).toHaveText("攻撃命中");
+    await touch("touchMove", [south]);
+    await page.clock.runFor(250);
+    await expect(attack).toHaveText("射程内に有効な対象なし");
+    await expect(marker).toHaveAttribute("transform", /rotate\(180\.0\)/);
     expect(await position()).toEqual(stopped);
 
+    await touch("touchMove", [right]);
+    await page.clock.runFor(120);
+    await expect(aim).toHaveAttribute("data-active", "true");
+    await expect(page.locator("#aim-knob")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+    await expect(attack).toHaveText(/攻撃命中|攻撃クールダウン/);
+
     // Keep the aim contact while changing the left contact and then releasing it.
-    await touch("touchStart", [left, north]);
+    await touch("touchStart", [right, left]);
     const rightward = { ...left, x: left.x + 39 };
     const leftward = { ...left, x: left.x - 39 };
-    await touch("touchMove", [north, rightward]);
+    await touch("touchMove", [right, rightward]);
     await page.clock.runFor(100);
     expect((await position()).x).toBeGreaterThan(stopped.x);
     const beforeLeft = await position();
-    await touch("touchMove", [north, leftward]);
+    await touch("touchMove", [right, leftward]);
     for (let i = 0; i < 4 && (await position()).x >= beforeLeft.x; i++) await page.clock.runFor(50);
     expect((await position()).x).toBeLessThan(beforeLeft.x);
     await expect(aim).toHaveAttribute("data-active", "true");
@@ -559,28 +568,26 @@ test.describe("manual attack stick", () => {
     await expect(move).toHaveAttribute("data-active", "false");
     await expect(aim).toHaveAttribute("data-active", "true");
     const afterLeftRelease = await position();
-    await touch("touchMove", [south]);
-    await page.clock.runFor(280);
-    await expect(attack).toHaveText("射程内に有効な対象なし");
+    await page.clock.runFor(70);
     expect(await position()).toEqual(afterLeftRelease);
-    await touch("touchMove", [right]);
-    await page.clock.runFor(500);
-    await expect(aim).toHaveAttribute("data-active", "true");
-    await expect(attack).toHaveText("攻撃待機");
-    await touch("touchMove", [south]);
 
-    await touch("touchStart", [south, left]);
-    await touch("touchMove", [south, forward]);
-    await touch("touchEnd", [south]);
+    await touch("touchStart", [right, left]);
+    await touch("touchMove", [right, forward]);
+    await touch("touchEnd", [right]);
     const beforeRightRelease = await position();
-    await page.clock.runFor(100);
+    await page.clock.runFor(250);
     expect((await position()).y).toBeLessThan(beforeRightRelease.y);
     await expect(move).toHaveAttribute("data-active", "true");
     await expect(aim).toHaveAttribute("data-active", "false");
     await expect(attack).toHaveText(/攻撃待機|攻撃クールダウン/);
+    await touch("touchStart", [forward, right]);
+    await page.clock.runFor(40);
+    await expect(aim).toHaveAttribute("data-active", "true");
     await touch("touchCancel", []);
-    await page.clock.runFor(50);
+    await page.clock.runFor(750);
     await expect(move).toHaveAttribute("data-active", "false");
+    await expect(aim).toHaveAttribute("data-active", "false");
+    await expect(attack).toHaveText("攻撃待機");
     const afterCancel = await position();
     await page.clock.runFor(85);
     expect(await position()).toEqual(afterCancel);

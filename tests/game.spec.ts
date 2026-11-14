@@ -304,11 +304,11 @@ test("the follow camera stays at the last position during death and returns to H
 
 test("all five tactical maps launch with their own layout and allow changing maps after a round", async ({ page }) => {
   const layouts = [
-    ["twin-forks", 7, "0 0 3392 1344"],
-    ["three-crossings", 7, "0 0 3456 1472"],
-    ["central-line", 5, "0 0 3328 1344"],
-    ["split-merge", 4, "0 0 3264 1280"],
-    ["cross-supply", 7, "0 0 3456 1472"],
+    ["twin-forks", 7, "0 0 2560 1216"],
+    ["three-crossings", 7, "0 0 2624 1344"],
+    ["central-line", 5, "0 0 2496 1216"],
+    ["split-merge", 4, "0 0 2432 1152"],
+    ["cross-supply", 7, "0 0 2624 1344"],
   ] as const;
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -356,7 +356,7 @@ test("a player reaches the front, connects supply, and attacks on the compact ma
   await expect(page.locator(".minimap-unit[data-team=red][transform]")).toHaveCount(0);
   const forwardSite = page.locator("#sites .site").filter({ has: page.getByText("D", { exact: true }) });
   await page.keyboard.down("d");
-  await page.clock.runFor(4650);
+  await page.clock.runFor(3200);
   await page.keyboard.up("d");
   await expect(forwardSite).toContainText(/青 起動|青/);
   for (let i = 0; i < 5 && await forwardSite.getAttribute("data-supply") !== "linked"; i++) {
@@ -412,5 +412,70 @@ test.describe("tactical map on a small touch screen", () => {
     await expect(player).not.toHaveAttribute("transform", before!);
     await expect(page.locator("#touch-fire")).toHaveAttribute("data-active", "true");
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  });
+});
+
+
+test.describe("held touch input during capture", () => {
+  test.use({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
+
+  test("keeps the first contact moving through a second-finger deployment and HUD updates", async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/?map=central-line&round=40");
+    await expect(page.locator("#start")).toBeEnabled();
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
+    await page.locator("#start").click({ force: true });
+    await expect(page.locator("#overlay")).toBeHidden();
+
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: { id: number; x: number; y: number }[]) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+    const control = async (selector: string, id: number) => {
+      const box = (await page.locator(selector).boundingBox())!;
+      return { id, x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+    const marker = page.locator(".minimap-player");
+    const playerX = async () => Number((await marker.getAttribute("transform"))!.match(/^translate\(([0-9.]+)/)?.[1]);
+    const move = await control("#stick", 1);
+    const deploy = await control("#touch-deploy", 2);
+    const battlefield = page.locator("#battlefield");
+    const initialBounds = await battlefield.boundingBox();
+    const right = { ...move, x: move.x + 56 };
+    const forward = page.locator("#sites .site").filter({ has: page.getByText("D", { exact: true }) });
+    const progress = forward.locator("progress");
+    await touch("touchStart", [move]);
+    await touch("touchMove", [right]);
+    await page.clock.runFor(2650);
+    for (let step = 0; step < 28 && await page.locator("#deploy-state").getAttribute("data-ready") !== "true"; step++) {
+      await page.clock.runFor(17);
+    }
+    await expect(page.locator("#deploy-state")).toHaveAttribute("data-ready", "true");
+    await expect(progress).toBeHidden();
+
+    await touch("touchStart", [right, deploy]);
+    await page.clock.runFor(80);
+    await expect(progress).toBeVisible();
+    await expect(forward).toContainText("青 起動");
+    const atInstall = await playerX();
+    await page.clock.runFor(900);
+    expect(await playerX()).toBeGreaterThan(atInstall + 100);
+    expect(await battlefield.boundingBox()).toEqual(initialBounds);
+
+    for (let step = 0; step < 13 && await forward.getAttribute("data-supply") !== "linked"; step++) {
+      await page.clock.runFor(430);
+    }
+    await expect(forward).toHaveAttribute("data-supply", "linked");
+    expect(Number(await page.locator("#blue-score").textContent())).toBeGreaterThan(0);
+    expect(await battlefield.boundingBox()).toEqual(initialBounds);
+    await expect(page.locator("#app")).toHaveAttribute("data-input-mode", "touch");
+    const beforeRelease = await playerX();
+    await page.clock.runFor(200);
+    expect(await playerX()).toBeGreaterThan(beforeRelease + 20);
+
+    await touch("touchEnd", []);
+    await page.clock.runFor(65);
+    const stopped = await playerX();
+    await page.clock.runFor(260);
+    expect(await playerX()).toBe(stopped);
   });
 });

@@ -14,7 +14,7 @@ const [forks, crossings, line, split, cross] = tacticalMaps;
 test("each map starts neutral with mirrored spawn and terrain, traversable lanes and off-lane jungle", () => {
   assert.deepEqual(tacticalMaps.map((map) => map.sites.length), [7, 7, 5, 4, 7]);
   for (const arena of tacticalMaps) {
-    assert.ok(arena.cols >= 100 && arena.cols <= 110 && arena.rows >= 40 && arena.rows <= 46);
+    assert.ok(arena.cols >= 76 && arena.cols <= 82 && arena.rows >= 36 && arena.rows <= 42);
     assert.ok(arena.sites.every((site) => hasClearance(site, site, SITE_RADIUS, arena)));
     assert.ok(arena.sites.every((a, i) => arena.sites.slice(i + 1).every((b) => distance(a, b) > 2 * SITE_RADIUS)));
     assert.ok(arena.sites.every((site) => TEAMS.every((team) => distance(site, arena.hq[team]) > 4 * SITE_RADIUS)));
@@ -38,7 +38,7 @@ test("each map starts neutral with mirrored spawn and terrain, traversable lanes
         const mirror = arena.terrain.get(arena.cols - 1 - x, y);
         assert.equal(tile <= 4 ? tile : 5, mirror <= 4 ? mirror : 5);
       });
-      for (const { a, b } of arena.lanes) assert.ok(hasClearance(a, b, RADIUS, arena), arena.id);
+      for (const { a, b } of arena.lanes) assert.ok(hasClearance(a, b, RADIUS + 6, arena), arena.id);
       for (const slot of [0, 1, 2, 3, 4]) {
         const a = arena.spawns.blue[slot];
         const b = arena.spawns.red[slot];
@@ -54,8 +54,8 @@ test("each map starts neutral with mirrored spawn and terrain, traversable lanes
 });
 
 test("compact-map navigation can detour through passable jungle around cover", () => {
-  const from = { x: 34 * TILE, y: 20 * TILE };
-  const to = { x: 42 * TILE, y: 20 * TILE };
+  const from = { x: 25 * TILE, y: 18 * TILE };
+  const to = { x: 32 * TILE, y: 18 * TILE };
   assert.equal(hasClearance(from, to, RADIUS, split), false);
   const path = route(from, to, split);
   assert.ok(path.length > 2);
@@ -84,9 +84,9 @@ test("supply speed ramps, breaks on hit or exit, and enemy slowdown follows grap
   const supply = new Supply(line);
   supply.rebuild(line.sites.map(({ id }) => ({ id, owner: id === "D" || id === "B" ? "blue" : null })));
   const blueHQ = line.hq.blue;
-  const mid = { x: 17 * TILE, y: blueHQ.y };
-  const jungle = { x: 17 * TILE, y: blueHQ.y + 5 * TILE };
-  const neutral = { x: 42 * TILE, y: line.hq.red.y + 7.5 * TILE };
+  const mid = { x: 13 * TILE, y: blueHQ.y };
+  const jungle = { x: 13 * TILE, y: blueHQ.y + 5 * TILE };
+  const neutral = { x: 32 * TILE, y: line.hq.red.y + 7.5 * TILE };
   const state = { boost: 0, slow: 0 };
   assert.ok(supply.speed(state, "blue", mid, 10, true, 1) > 1);
   assert.equal(supply.speed(state, "blue", mid, 10, true, 2), 1.28);

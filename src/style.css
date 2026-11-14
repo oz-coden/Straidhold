@@ -34,8 +34,6 @@ body { margin: 0; }
   gap: 10px;
 }
 
-.wordmark { font-weight: 850; letter-spacing: .15em; font-size: 15px; }
-.wordmark span { display: block; color: var(--muted); letter-spacing: .05em; font-size: 10px; margin-top: 2px; }
 .scoreboard { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
 .score, #clock {
   display: flex;
@@ -53,8 +51,7 @@ body { margin: 0; }
 .score strong, #clock { font-size: 19px; font-weight: 750; }
 .score.blue { color: var(--blue); border-bottom: 2px solid var(--blue); }
 .score.red { color: var(--red); border-bottom: 2px solid var(--red); }
-.match-actions { display: flex; justify-content: end; flex-wrap: wrap; gap: 4px; }
-#leave-battle { font-size: 11px; }
+#open-settings { justify-self: end; }
 
 button, select { font: inherit; }
 button {
@@ -213,8 +210,6 @@ dialog button { justify-self: end; }
   .input-hint { display: none; }
 }
 @media (max-width: 440px) {
-  .wordmark { font-size: 10px; letter-spacing: .045em; }
-  .wordmark span { font-size: 9px; }
   .match-header { gap: 4px; }
   .scoreboard { gap: 3px; }
   .score, #clock { min-width: 40px; gap: 4px; padding: 0 4px; }
@@ -232,7 +227,6 @@ dialog button { justify-self: end; }
     padding-top: max(5px, env(safe-area-inset-top));
     padding-bottom: max(5px, env(safe-area-inset-bottom));
   }
-  .wordmark { font-size: 12px; }
   .score, #clock { min-height: 30px; }
   .site { min-height: 23px; }
   .match-footer { min-height: 36px; }
@@ -422,7 +416,3 @@ dialog button { justify-self: end; }
 #round-results { color: var(--muted); padding-inline-start: 1.5rem; }
 #round-results:empty, #round-status:empty { display: none; }
 #round-status { color: var(--muted); font-size: .8rem; }
-@media (max-width: 480px) {
-  .match-actions { gap: 2px; }
-  .match-actions button { padding: 3px 5px; }
-}

@@ -1,5 +1,5 @@
 export type StreakNotice =
-  | { readonly kind: "milestone"; readonly count: number }
+  | { readonly kind: "milestone"; readonly count: 3 | 5 | 10 }
   | { readonly kind: "shutdown"; readonly count: number };
 
 export function createStreakBanner(host: HTMLElement) {

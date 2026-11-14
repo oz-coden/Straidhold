@@ -78,7 +78,7 @@ export function initialMatchSetup(query: URLSearchParams): MatchSetup {
 
 export type Screen = "title" | "setup" | "character" | "lobby" | "battle" | "result";
 
-export function showScreen(screens: Readonly<Record<Screen, HTMLElement>>, screen: Screen) {
-  for (const [id, element] of Object.entries(screens)) element.hidden = id !== screen;
+export function showScreen<T extends Screen>(screens: Readonly<Record<T, HTMLElement>>, screen: T) {
+  for (const id of Object.keys(screens) as T[]) screens[id].hidden = id !== screen;
   screens[screen].querySelector<HTMLElement>("[data-screen-focus]")?.focus({ preventScroll: true });
 }

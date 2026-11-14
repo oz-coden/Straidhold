@@ -13,10 +13,15 @@ import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
+import { initialMatchSetup, RULES, showScreen, type RuleId } from "./web/game-flow.ts";
 import { settingsPanel, type InputMode } from "./web/settings.ts";
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = get("app");
+const screens = {
+  title: get("title-screen"), setup: get("setup-screen"), battle: app,
+};
+const setupNext = get<HTMLButtonElement>("setup-next");
 let updateCameraLayout: (() => void) | undefined;
 let paintOverlay: (() => void) | undefined;
 const game = new Game<"briefing" | "match">({
@@ -91,26 +96,29 @@ function announceMode(mode: InputMode) {
   display(get("input-hint"), hints[mode]);
 }
 
-const query = new URLSearchParams(location.search);
+let setup = initialMatchSetup(new URLSearchParams(location.search));
 const selector = get<HTMLSelectElement>("map-select");
 for (const { id, name } of arenas) selector.add(new Option(name, id));
-let selected = arenas.find(({ id }) => id === query.get("map")) ?? arenas[0];
-selector.value = selected.id;
+selector.value = setup.arena.id;
+const rule = get<HTMLSelectElement>("rule-select");
+for (const [id, { label }] of Object.entries(RULES)) rule.add(new Option(label, id));
+rule.value = setup.rule;
+rule.addEventListener("change", () => {
+  setup = { ...setup, rule: rule.value as RuleId };
+}, { signal: life.signal });
 function updateBriefing() {
-  get("map-preview").replaceChildren(mapPreview(selected));
-  display(get("map-description"), selected.description);
+  get("map-preview").replaceChildren(mapPreview(setup.arena));
+  display(get("map-description"), setup.arena.description);
 }
 selector.addEventListener("change", () => {
-  selected = arenas.find(({ id }) => id === selector.value) ?? arenas[0];
+  const arena = arenas.find(({ id }) => id === selector.value);
+  if (!arena) return;
+  setup = { ...setup, arena };
   updateBriefing();
 }, { signal: life.signal });
 updateBriefing();
 
-const param = query.get("round");
-const requested = Number(param);
-const seconds = param && /^\d{1,3}$/.test(param) && requested >= 5 && requested <= ROUND_SECONDS
-  ? requested
-  : ROUND_SECONDS;
+const seconds = setup.roundSeconds;
 if (seconds !== ROUND_SECONDS) display(get("briefing-mode"), `5対5 / テストラウンド ${seconds}秒`);
 
 function showClock(remaining: number) {
@@ -132,7 +140,7 @@ announceMode(settings.mode === "auto" ? initialInputMode() : settings.mode);
 game.scene("briefing", () => {});
 
 game.scene("match", (context) => {
-  const arena = selected;
+  const arena = setup.arena;
   const sites = siteHud(arena);
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
@@ -254,7 +262,6 @@ game.scene("match", (context) => {
       resultShown = true;
       active = false;
       touchView.layer.hidden = true;
-      display(get("briefing-mode"), "ラウンド終了");
       display(headline, battle.result === "draw" ? "引き分け" : `${names[battle.result]}チームの勝利`);
       display(mission, `青 ${battle.scores.blue} — ${battle.scores.red} 赤`);
       display(start, "再試合");
@@ -270,10 +277,11 @@ function report(error: unknown) {
   overlay.hidden = false;
 }
 
-start.addEventListener("click", async () => {
+async function startMatch() {
   if (transition) return;
   transition = true;
-  start.disabled = true;
+  start.disabled = setupNext.disabled = true;
+  showScreen(screens, "battle");
   try {
     await game.changeScene("match");
     updateCameraLayout?.();
@@ -282,15 +290,19 @@ start.addEventListener("click", async () => {
   } catch (error) {
     report(error);
   } finally {
-    start.disabled = false;
+    start.disabled = setupNext.disabled = false;
     transition = false;
   }
-}, { signal: life.signal });
-get("open-settings").addEventListener("click", () => {
+}
+for (const button of [start, setupNext]) button.addEventListener("click", startMatch, { signal: life.signal });
+get("solo").addEventListener("click", () => showScreen(screens, "setup"), { signal: life.signal });
+get("setup-back").addEventListener("click", () => showScreen(screens, "title"), { signal: life.signal });
+function openSettings() {
   if (transition || dialog.open) return;
   game.pause();
   dialog.showModal();
-}, { signal: life.signal });
+}
+for (const id of ["open-settings", "title-settings"]) get(id).addEventListener("click", openSettings, { signal: life.signal });
 dialog.addEventListener("close", () => {
   game.resume();
   if (active) game.element.focus({ preventScroll: true });
@@ -309,4 +321,4 @@ window.addEventListener("pagehide", (event) => {
 }, { signal: life.signal });
 import.meta.hot?.dispose(dispose);
 
-game.run("briefing").then(() => { start.disabled = false; }).catch(report);
+game.run("briefing").then(() => { start.disabled = setupNext.disabled = false; }).catch(report);

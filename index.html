@@ -7,7 +7,40 @@
     <title>Straidhold</title>
   </head>
   <body>
-    <main id="app">
+    <section id="title-screen" class="flow-screen title-screen" aria-labelledby="title-heading">
+      <div class="flow-panel title-panel">
+        <h1 id="title-heading" tabindex="-1" data-screen-focus>Straidhold</h1>
+        <p class="flow-muted">5対5の拠点占領戦</p>
+        <nav class="title-menu" aria-label="メインメニュー">
+          <button id="solo" class="primary" type="button">ソロモード</button>
+          <button class="secondary" type="button" disabled>ストーリーモード <small>準備中</small></button>
+          <button class="secondary" type="button" disabled>マルチプレイ（参加） <small>準備中</small></button>
+          <button class="secondary" type="button" disabled>マルチプレイ（ホスト） <small>準備中</small></button>
+          <button id="title-settings" class="secondary" type="button">設定</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="setup-screen" class="flow-screen" aria-labelledby="setup-heading" hidden>
+      <div class="flow-panel">
+        <h1 id="setup-heading" tabindex="-1" data-screen-focus>ソロ対戦の設定</h1>
+        <p id="briefing-mode" class="flow-muted">5対5 / 拠点占領</p>
+        <div class="map-picker">
+          <label for="map-select">戦場</label>
+          <select id="map-select"></select>
+          <div id="map-preview" aria-hidden="true"></div>
+          <p id="map-description"></p>
+          <label for="rule-select">ルール</label>
+          <select id="rule-select"></select>
+        </div>
+        <div class="flow-actions">
+          <button id="setup-back" class="secondary" type="button">戻る</button>
+          <button id="setup-next" class="primary" type="button" disabled>試合開始</button>
+        </div>
+      </div>
+    </section>
+
+    <main id="app" aria-label="対戦" hidden>
       <header class="match-header">
         <div class="wordmark">STRAIDHOLD <span>試作 0.2.4</span></div>
         <div class="scoreboard" aria-label="スコアと残り時間">
@@ -30,17 +63,10 @@
           <div id="touch-deploy" class="touch-button">設置</div>
         </div>
         <div id="respawn" class="respawn" role="status" hidden></div>
-        <section id="overlay" class="overlay" aria-label="マッチメニュー">
+        <section id="overlay" class="overlay" aria-label="マッチメニュー" hidden>
           <div class="briefing">
-            <p id="briefing-mode" class="eyebrow">5対5 / 拠点占領</p>
             <h1 id="headline">Straidhold</h1>
             <p id="mission">占領装置を設置し、起動まで拠点を守れ。</p>
-            <div class="map-picker">
-              <label for="map-select">戦場</label>
-              <select id="map-select"></select>
-              <div id="map-preview" aria-hidden="true"></div>
-              <p id="map-description"></p>
-            </div>
             <button id="start" class="primary" type="button" disabled>試合開始</button>
           </div>
         </section>

@@ -358,3 +358,36 @@ dialog button { justify-self: end; }
   .briefing #start { grid-column: 3; grid-row: 4; padding: .42em .7em; white-space: nowrap; font-size: 13px; }
   #map-preview { grid-row: 5; }
 }
+
+.flow-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: radial-gradient(ellipse at 20% 0%, #1b3c4e 0, transparent 62%), #0b141e;
+}
+.flow-panel {
+  width: min(100%, 38rem);
+  padding: clamp(16px, 5vw, 32px);
+  background: #101e2c;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+}
+.flow-panel h1 { margin: 0 0 .4rem; font-size: clamp(1.45rem, 5vw, 2.25rem); }
+.flow-muted { color: var(--muted); margin: 0 0 1rem; }
+.title-panel h1 { font-size: clamp(2rem, 9vw, 4.5rem); letter-spacing: .035em; line-height: 1; }
+.title-menu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.title-menu button { min-height: 44px; white-space: normal; text-align: left; }
+.title-menu #solo { grid-column: 1 / -1; }
+.title-menu button:disabled { cursor: default; }
+.title-menu small { color: var(--muted); font-size: .75em; }
+.flow-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 1rem; }
+.flow-actions button { min-height: 42px; }
+.flow-panel .map-picker { display: grid; }
+.flow-panel #map-preview { grid-row: auto; }
+.flow-panel #map-description { display: block; }
+.flow-panel #map-preview svg { height: clamp(64px, 23vh, 150px); }
+
+@media (max-width: 370px) {
+  .title-menu { grid-template-columns: 1fr; }
+}

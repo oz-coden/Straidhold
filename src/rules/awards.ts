@@ -1,5 +1,7 @@
 import { TEAMS, type Team } from "./arena.ts";
-import { contributionUnits, type ParticipantStats } from "./contribution.ts";
+import { contributionUnits, POINT_UNITS, type ParticipantStats } from "./contribution.ts";
+
+export const AWARD_POINTS = { mvp: 100, first: 30, second: 15, streak: 30 } as const;
 
 export type AwardId = "mvp" | "team-mvp" | "kills" | "assists" | "captures" | "guarding"
   | "movement" | "damage" | "recovery" | "streak";
@@ -54,4 +56,15 @@ export function selectAwards(rows: readonly ParticipantStats[]): readonly Award[
     }
   }
   return awards;
+}
+
+export function awardUnits(award: Award) {
+  if (award.id === "team-mvp") return 0;
+  if (award.id === "mvp") return AWARD_POINTS.mvp * POINT_UNITS;
+  if (award.id === "streak") return AWARD_POINTS.streak * POINT_UNITS;
+  return (award.rank === 1 ? AWARD_POINTS.first : AWARD_POINTS.second) * POINT_UNITS;
+}
+
+export function awardBonusUnits(awards: readonly Award[]) {
+  return awards.reduce((total, award) => total + awardUnits(award), 0);
 }

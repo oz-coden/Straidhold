@@ -541,3 +541,47 @@ dialog button { justify-self: end; }
 @media (max-width: 480px) {
   #match-awards li:not([data-award="team-mvp"]) { grid-column: 1 / -1; }
 }
+
+#streak-banner {
+  --streak-accent: #85ddf8;
+  position: absolute;
+  z-index: 4;
+  top: 6px;
+  left: 50%;
+  translate: -50%;
+  scale: var(--streak-scale, 1);
+  inline-size: max-content;
+  max-inline-size: min(34%, 10.5rem, calc(100% - 200px));
+  padding: 3px 8px;
+  border: 1px solid #6f9bb2;
+  border-top: 2px solid var(--streak-accent);
+  border-radius: 5px;
+  background: #0b192aeb;
+  color: var(--streak-accent);
+  text-align: center;
+  font-size: clamp(11px, 2.2vmin, 17px);
+  font-weight: 800;
+  line-height: 1.1;
+  pointer-events: none;
+}
+#streak-banner[data-count="5"][data-kind="milestone"] {
+  --streak-accent: #ffe0a1;
+  border-top-width: 3px;
+  background: #302616ed;
+}
+#streak-banner[data-count="10"][data-kind="milestone"] {
+  --streak-accent: #fff2bd;
+  border-color: #dfbb68;
+  background: #34264bed;
+  box-shadow: 0 0 10px #ffd89155, inset 0 0 7px #ffd89133;
+}
+#streak-banner[data-kind="shutdown"] {
+  --streak-accent: #ffb09d;
+  background: #341f28ed;
+  border-color: #c97364;
+  font-size: clamp(9px, 1.6vmin, 12px);
+}
+#streak-banner strong { display: block; margin-bottom: 2px; font-size: 1.18em; letter-spacing: .06em; }
+@media (prefers-reduced-motion: reduce) {
+  #streak-banner { scale: none; }
+}

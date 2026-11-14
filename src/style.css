@@ -88,7 +88,8 @@ button:disabled { opacity: .6; cursor: wait; }
 .site strong { font-size: 13px; white-space: nowrap; }
 .site[data-owner="blue"] strong { color: var(--blue); }
 .site[data-owner="red"] strong { color: var(--red); }
-.site span { color: var(--muted); text-align: right; }
+/* Match-state text must not change the game surface or cancel held gestures. */
+.site span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); text-align: right; }
 .site progress { position: absolute; inset: auto 0 0; height: 3px; width: 100%; border: 0; appearance: none; --progress: var(--blue); }
 .site progress[data-team="red"] { --progress: var(--red); }
 .site progress::-webkit-progress-bar { background: #2a3643; }
@@ -157,7 +158,18 @@ h1 { margin: 0; font-size: clamp(27px, 7vh, 62px); line-height: 1.02; letter-spa
 .vital meter::-webkit-meter-bar { background: #243648; border: 0; }
 .vital meter::-webkit-meter-optimum-value { background: var(--fill); }
 .vital meter::-moz-meter-bar { background: var(--fill); }
-.actions { display: grid; gap: 3px; text-align: center; font-size: 11px; color: var(--muted); }
+.actions {
+  display: grid;
+  grid-template-rows: repeat(3, 16px);
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  text-align: center;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--muted);
+}
+.actions span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #attack-state { color: #dcebf9; font-weight: 700; }
 #deploy-state[data-ready="true"] { color: var(--gold); }
 .input-hint { text-align: right; color: var(--muted); font-size: 11px; }
@@ -206,7 +218,7 @@ dialog input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent
 dialog button { justify-self: end; }
 
 @media (max-width: 720px), (max-height: 490px) {
-  .match-footer { grid-template-columns: minmax(110px, 1fr) 1fr; gap: 5px; }
+  .match-footer { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 5px; }
   .actions { justify-self: end; text-align: right; }
   .input-hint { display: none; }
 }

@@ -237,7 +237,10 @@ game.scene("match", (context) => {
         row.dataset.supply = supply;
         row.title = supply === "linked" ? "本部に接続" : supply === "cut" ? "補給が途絶" : "";
       }
-      display(state, device ? `${names[owner ?? "neutral"]} / ${names[device.team]}${device.contested ? " 係争" : " 起動"} ${Math.floor(100 * device.progress / ACTIVATE_TICKS)}%` : names[owner ?? "neutral"]);
+      const status = device ? `${names[device.team]}${device.contested ? " 係争" : " 起動"} ${Math.floor(100 * device.progress / ACTIVATE_TICKS)}%` : names[owner ?? "neutral"];
+      display(state, status);
+      const detail = device ? `${names[owner ?? "neutral"]} / ${status}` : status;
+      if (state.title !== detail) state.title = detail;
       progress.hidden = !device;
       if (device) {
         progress.value = device.progress;

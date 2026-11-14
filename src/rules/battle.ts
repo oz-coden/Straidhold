@@ -131,6 +131,7 @@ export class Battle {
 
   private readonly events: CombatEvents;
   private readonly stats: RoundStats;
+  private readonly movementStarts: { x: number; y: number }[] = [];
   private readonly captures = new Map<Site, CaptureContribution>();
   private readonly source: CommandSource;
   private started: boolean;
@@ -169,6 +170,8 @@ export class Battle {
 
   get combatEvents() { return this.events.events; }
 
+  currentStreak(id: string) { return this.stats.currentStreak(id); }
+
   participantStats() { return this.stats.snapshot(); }
 
   start() { this.started = true; }
@@ -195,6 +198,10 @@ export class Battle {
       return fighter.hp > 0 ? validate(command) : IDLE;
     });
     this.fighters.forEach((fighter, i) => {
+      // Sample after respawns and before Motion and collision resolution.
+      const start = this.movementStarts[i] ?? (this.movementStarts[i] = { x: 0, y: 0 });
+      start.x = fighter.position.x;
+      start.y = fighter.position.y;
       const command = commands[i];
       fighter.command = command;
       Object.assign(fighter.motion.direction, command.move);
@@ -211,6 +218,10 @@ export class Battle {
   private resolve() {
     if (!this.started || this.result) return;
     this.events.beginTick(this.tick);
+    for (let i = 0; i < this.fighters.length; i++) {
+      const fighter = this.fighters[i];
+      if (fighter.hp > 0) this.stats.recordMovement(fighter.id, distance(this.movementStarts[i], fighter.position));
+    }
     const cutoff = this.tick - Math.round(HZ * 0.22);
     while (this.shots.length && this.shots[0].tick < cutoff) this.shots.shift();
     const hits: Shot[] = [];
@@ -230,9 +241,15 @@ export class Battle {
       }
     }
     // Reveal after collecting all attacks to preserve simultaneous decisions.
-    for (const hit of hits) {
+    // Both sides can land shots captured at the start of this tick. End
+    // their streaks after all such shots resolve, regardless of roster order.
+    const previousStreaks = hits.map(({ to }) => this.stats.currentStreak(to.id));
+    for (const [i, hit] of hits.entries()) {
       hit.from.revealedUntil = this.tick + 1.5 * HZ;
-      this.damage(hit.to, hit.from);
+      this.damage(hit.to, hit.from, previousStreaks[i]);
+    }
+    for (const event of this.combatEvents) {
+      if (event.kind === "defeat") this.stats.resetStreak(event.target);
     }
     this.shots.push(...hits);
 
@@ -246,7 +263,9 @@ export class Battle {
       if (quiet > fighter.profile.shieldDelay && distance(fighter.position, this.arena.hq[fighter.team]) <= 84) {
         fighter.hp = Math.min(fighter.profile.hp, fighter.hp + fighter.profile.hqHealPerSecond / HZ);
       }
-      if (fighter.hp > hp || fighter.shield > shield) this.stats.clearDamage(fighter.id);
+      if (fighter.hp > hp || fighter.shield > shield) {
+        this.stats.recordRecovery(fighter.id, Math.max(0, fighter.shield - shield), Math.max(0, fighter.hp - hp));
+      }
     }
     let changed = false;
     for (const site of this.sites) {
@@ -262,11 +281,12 @@ export class Battle {
       const owned = (team: Team) => this.sites.filter((site) => site.owner === team).length;
       const lead = this.scores.blue - this.scores.red || owned("blue") - owned("red") || this.kills.blue - this.kills.red;
       this.result = lead === 0 ? "draw" : lead > 0 ? "blue" : "red";
+      this.stats.finishRound();
       for (const fighter of this.fighters) Object.assign(fighter.motion.direction, ZERO);
     }
   }
 
-  private damage(target: Fighter, attacker: Fighter) {
+  private damage(target: Fighter, attacker: Fighter, stoppedStreak: number) {
     if (target.hp <= 0) return;
     const { hp, shield } = target;
     const overflow = Math.max(0, attacker.profile.damage - target.shield);
@@ -274,15 +294,15 @@ export class Battle {
     target.hp = Math.max(0, target.hp - overflow);
     target.hitAt = this.tick;
     if (shield > target.shield || hp > target.hp) {
-      this.stats.recordDamage(attacker, target);
+      this.stats.recordDamage(attacker, target, shield - target.shield, hp - target.hp);
       this.events.record({
         kind: "damage", attacker: attacker.id, target: target.id, team: attacker.team,
         shield: shield - target.shield, hp: hp - target.hp, lethal: target.hp === 0,
       });
     }
     if (target.hp === 0) {
-      const assists = this.stats.recordDefeat(attacker, target);
-      this.events.record({ kind: "defeat", attacker: attacker.id, target: target.id, team: attacker.team, assists });
+      const { assists, streak } = this.stats.recordDefeat(attacker, target);
+      this.events.record({ kind: "defeat", attacker: attacker.id, target: target.id, team: attacker.team, assists, streak, stoppedStreak });
       const elapsed = 1 - this.remaining / (this.duration / HZ);
       target.downUntil = this.tick + Math.round((2 + 8 * Math.min(1, elapsed / 0.8)) * HZ);
       target.target = undefined;

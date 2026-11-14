@@ -4,7 +4,7 @@ type EventDetails =
   | { readonly kind: "damage"; readonly attacker: string; readonly target: string; readonly team: Team;
       readonly shield: number; readonly hp: number; readonly lethal: boolean }
   | { readonly kind: "defeat"; readonly attacker: string; readonly target: string; readonly team: Team;
-      readonly assists: readonly string[] }
+      readonly assists: readonly string[]; readonly streak: number; readonly stoppedStreak: number }
   | { readonly kind: "capture"; readonly site: string; readonly team: Team; readonly previous: Team | null;
       readonly installer: string; readonly guards: readonly string[] };
 

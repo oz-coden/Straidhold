@@ -9,15 +9,22 @@ export interface Participant {
   readonly slot: number;
 }
 
-interface Totals {
-  kills: number;
-  assists: number;
-  deaths: number;
-  captures: number;
-  installationUnits: number;
-  guardingUnits: number;
+export const STREAK_MILESTONES: readonly number[] = [3, 5, 10];
+
+const additiveStats = [
+  "kills", "assists", "deaths", "captures", "installationUnits", "guardingUnits",
+  "distanceMoved", "shieldDamage", "hpDamage", "shieldRecovered", "hpRecovered",
+] as const;
+
+export function emptyStats() {
+  return {
+    kills: 0, assists: 0, deaths: 0, captures: 0, installationUnits: 0, guardingUnits: 0,
+    distanceMoved: 0, shieldDamage: 0, hpDamage: 0, shieldRecovered: 0, hpRecovered: 0,
+    currentStreak: 0, maxStreak: 0,
+  };
 }
 
+type Totals = ReturnType<typeof emptyStats>;
 export type ParticipantStats = Readonly<Participant & Totals>;
 
 export function contributionUnits(stats: ParticipantStats) {
@@ -61,7 +68,7 @@ export class RoundStats {
 
   constructor(roster: readonly Participant[]) {
     for (const { id, team, slot } of roster) {
-      this.participants.set(id, { id, team, slot, kills: 0, assists: 0, deaths: 0, captures: 0, installationUnits: 0, guardingUnits: 0 });
+      this.participants.set(id, { id, team, slot, ...emptyStats() });
     }
   }
 
@@ -80,7 +87,29 @@ export class RoundStats {
     return awards.map(({ id }) => id);
   }
 
-  recordDamage(attacker: Participant, target: Participant) {
+  recordMovement(id: string, amount: number) {
+    this.participants.get(id)!.distanceMoved += amount;
+  }
+
+  recordRecovery(id: string, shield: number, hp: number) {
+    const row = this.participants.get(id)!;
+    row.shieldRecovered += shield;
+    row.hpRecovered += hp;
+    this.clearDamage(id);
+  }
+
+  currentStreak(id: string) { return this.participants.get(id)!.currentStreak; }
+
+  resetStreak(id: string) { this.participants.get(id)!.currentStreak = 0; }
+
+  finishRound() {
+    for (const row of this.participants.values()) row.currentStreak = 0;
+  }
+
+  recordDamage(attacker: Participant, target: Participant, shield: number, hp: number) {
+    const row = this.participants.get(target.id)!;
+    row.shieldDamage += shield;
+    row.hpDamage += hp;
     if (attacker.team === target.team) return;
     let attackers = this.attackers.get(target.id);
     if (!attackers) this.attackers.set(target.id, attackers = new Set());
@@ -89,14 +118,17 @@ export class RoundStats {
 
   clearDamage(target: string) { this.attackers.delete(target); }
 
-  recordDefeat(attacker: Participant, target: Participant): readonly string[] {
-    this.participants.get(attacker.id)!.kills++;
+  recordDefeat(attacker: Participant, target: Participant) {
+    const row = this.participants.get(attacker.id)!;
+    row.kills++;
+    row.currentStreak++;
+    row.maxStreak = Math.max(row.maxStreak, row.currentStreak);
     this.participants.get(target.id)!.deaths++;
     const assists = Array.from(this.attackers.get(target.id) ?? [])
       .filter((id) => id !== attacker.id && this.participants.get(id)?.team === attacker.team);
     for (const id of assists) this.participants.get(id)!.assists++;
     this.clearDamage(target.id);
-    return assists;
+    return { assists, streak: row.currentStreak };
   }
 }
 
@@ -106,15 +138,11 @@ export function totalParticipants(rounds: readonly (readonly ParticipantStats[])
     for (const row of round) {
       const total = totals.get(row.id);
       if (!total) {
-        totals.set(row.id, { ...row });
+        totals.set(row.id, { ...row, currentStreak: 0 });
         continue;
       }
-      total.kills += row.kills;
-      total.assists += row.assists;
-      total.deaths += row.deaths;
-      total.captures += row.captures;
-      total.installationUnits += row.installationUnits;
-      total.guardingUnits += row.guardingUnits;
+      for (const key of additiveStats) total[key] += row[key];
+      total.maxStreak = Math.max(total.maxStreak, row.maxStreak);
     }
   }
   return [...totals.values()];

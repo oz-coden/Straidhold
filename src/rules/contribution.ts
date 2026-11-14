@@ -9,7 +9,7 @@ export interface Participant {
   readonly slot: number;
 }
 
-export const STREAK_MILESTONES: readonly number[] = [3, 5, 10];
+export const STREAK_MILESTONES = [3, 5, 10] as const;
 
 const additiveStats = [
   "kills", "assists", "deaths", "captures", "installationUnits", "guardingUnits",

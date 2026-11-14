@@ -169,6 +169,7 @@ h1 { margin: 0; font-size: clamp(27px, 7vh, 62px); line-height: 1.02; letter-spa
   line-height: 16px;
   color: var(--muted);
 }
+.actions:has(#terrain-state[hidden]) { grid-template-rows: repeat(2, 16px); }
 .actions span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #attack-state { color: #dcebf9; font-weight: 700; }
 #deploy-state[data-ready="true"] { color: var(--gold); }

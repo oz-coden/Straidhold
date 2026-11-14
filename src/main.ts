@@ -11,6 +11,7 @@ import { createFog } from "./web/fog.ts";
 import { createMinimap, mapPreview } from "./web/minimap.ts";
 import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
+import { createCombatFeed } from "./web/combat-feedback.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
 import { CHARACTERS, initialMatchSetup, MatchSeries, PLAYER_ID, RoundPreparation, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
@@ -157,8 +158,9 @@ game.scene("match", (context) => {
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
   const battle = new Battle(context.scene, atlas, match.setup.roundSeconds, (fighter, state) =>
-    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false);
+    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false, match.rounds.length + 1);
   const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
+  const feed = createCombatFeed(get("combat-feed"), player.id, player.team);
   const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
   const fog = createFog(game, get("battlefield"), vision, arena);
   const minimap = createMinimap(game, get("battlefield"), battle, player, vision, fog.mask);
@@ -230,6 +232,7 @@ game.scene("match", (context) => {
     roster.paint();
   });
   context.onDispose(() => {
+    feed.dispose();
     fog.dispose();
     minimap.dispose();
     roster.dispose();
@@ -273,7 +276,8 @@ game.scene("match", (context) => {
     const deployState = get("deploy-state");
     deployState.dataset.ready = String(deploy);
     display(deployState, deploy ? `${availableSite.id}に装置を設置できる`
-      : availableSite?.device ? `${availableSite.id}の装置が起動中` : "拠点に近づくと設置可能");
+      : availableSite?.device ? `${availableSite.id} ${availableSite.device.contested || availableSite.device.abandoned ? "占領停止中" : "占領進行中"}`
+        : "拠点に近づくと設置可能");
     const terrain = get("terrain-state");
     if (arena.lanes.length) {
       const lane = battle.supply.laneAt(player.position);
@@ -288,6 +292,7 @@ game.scene("match", (context) => {
     display(attack, player.hp <= 0 ? "攻撃不可" : fired ? "攻撃命中" : player.command.attack && !hasTarget ? "射程内に有効な対象なし"
       : battle.tick < player.attackAt ? "攻撃クールダウン" : hasTarget ? "攻撃対象を捕捉" : "攻撃待機");
     roster.paint();
+    feed.update(battle.combatEvents, battle.tick);
     battle.sites.forEach(({ id, owner, device }, i) => {
       const { row, state, progress } = sites[i];
       row.dataset.owner = owner ?? "neutral";
@@ -297,7 +302,12 @@ game.scene("match", (context) => {
         row.dataset.supply = supply;
         row.title = supply === "linked" ? "本部に接続" : supply === "cut" ? "補給が途絶" : "";
       }
-      const status = device ? `${names[device.team]}${device.contested ? " 係争" : " 起動"} ${Math.floor(100 * device.progress / ACTIVATE_TICKS)}%` : names[owner ?? "neutral"];
+      const paused = !!device && (device.contested || device.abandoned > 0);
+      const phase = !device ? "idle" : device.contested ? "contested" : device.abandoned ? "waiting" : device.progress ? "active" : "installed";
+      row.dataset.capture = phase;
+      const action = device?.contested ? "係争" : device?.abandoned ? "停止" : device?.progress ? "起動" : "設置";
+      const status = device ? `${names[device.team]} ${action} ${Math.floor(100 * device.progress / ACTIVATE_TICKS)}%`
+        : feed.captureStatus(id) ?? names[owner ?? "neutral"];
       display(state, status);
       const detail = device ? `${names[owner ?? "neutral"]} / ${status}` : status;
       if (state.title !== detail) state.title = detail;
@@ -305,6 +315,8 @@ game.scene("match", (context) => {
       if (device) {
         progress.value = device.progress;
         progress.dataset.team = device.team;
+        progress.dataset.paused = String(paused);
+        progress.setAttribute("aria-valuetext", status);
       }
     });
     if (battle.result && !finished) {

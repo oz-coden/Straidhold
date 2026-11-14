@@ -429,3 +429,19 @@ dialog button { justify-self: end; }
 }
 .lobby-teams small { color: var(--muted); }
 #lobby-ready[aria-pressed="true"] { border-color: var(--blue); }
+
+.preparation-panel {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: #e8f3fc;
+  padding: 8px 14px;
+  background: #111e2bee;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+}
+.preparation-panel h2 { margin: 0; font-size: clamp(1rem, 4vw, 1.5rem); }
+.preparation-panel output { color: var(--gold); min-width: 2ch; font-size: 1.7rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.preparation-panel button { font-size: .85rem; }

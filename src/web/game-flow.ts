@@ -1,4 +1,4 @@
-import { ROUND_SECONDS } from "../rules/battle.ts";
+import { HZ, ROUND_SECONDS } from "../rules/battle.ts";
 import type { Arena, Team } from "../rules/arena.ts";
 import { arenas } from "../rules/maps.ts";
 
@@ -82,4 +82,31 @@ export type Screen = "title" | "setup" | "character" | "lobby" | "battle" | "res
 export function showScreen<T extends Screen>(screens: Readonly<Record<T, HTMLElement>>, screen: T) {
   for (const id of Object.keys(screens) as T[]) screens[id].hidden = id !== screen;
   screens[screen].querySelector<HTMLElement>("[data-screen-focus]")?.focus({ preventScroll: true });
+}
+
+
+export const FIRST_PREPARATION_SECONDS = 10;
+export const BETWEEN_ROUNDS_SECONDS = 60;
+export const COUNTDOWN_SECONDS = 3;
+const COUNTDOWN_TICKS = COUNTDOWN_SECONDS * HZ;
+
+export class RoundPreparation {
+  private ticks: number;
+
+  constructor(firstRound: boolean) {
+    this.ticks = (firstRound ? FIRST_PREPARATION_SECONDS : BETWEEN_ROUNDS_SECONDS) * HZ + COUNTDOWN_TICKS;
+  }
+
+  get phase() { return this.ticks > COUNTDOWN_TICKS ? "preparation" : this.ticks > 0 ? "countdown" : "combat"; }
+
+  get remaining() {
+    return Math.ceil((this.phase === "preparation" ? this.ticks - COUNTDOWN_TICKS : this.ticks) / HZ);
+  }
+
+  skipPreparation() { this.ticks = Math.min(this.ticks, COUNTDOWN_TICKS); }
+
+  advance() {
+    if (this.ticks > 0) this.ticks--;
+    return this.phase;
+  }
 }

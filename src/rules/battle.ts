@@ -128,9 +128,11 @@ export class Battle {
   result: Team | "draw" | null = null;
 
   private readonly source: CommandSource;
+  private started: boolean;
 
-  constructor(scene: Scene, atlas: string, seconds: number, source: CommandSource, arena: Arena = trainingArena) {
+  constructor(scene: Scene, atlas: string, seconds: number, source: CommandSource, arena: Arena = trainingArena, started = true) {
     this.source = source;
+    this.started = started;
     this.arena = arena;
     if (!Number.isInteger(seconds) || seconds < 1 || seconds > ROUND_SECONDS) throw new RangeError("Invalid round duration");
     this.duration = seconds * HZ;
@@ -158,8 +160,10 @@ export class Battle {
 
   get remaining() { return (this.duration - this.tick) / HZ; }
 
+  start() { this.started = true; }
+
   private read() {
-    if (this.result) return;
+    if (!this.started || this.result) return;
     this.tick++;
     // Read every source against the same state before applying any commands.
     for (const fighter of this.fighters) {
@@ -194,7 +198,7 @@ export class Battle {
   }
 
   private resolve() {
-    if (this.result) return;
+    if (!this.started || this.result) return;
     const cutoff = this.tick - Math.round(HZ * 0.22);
     while (this.shots.length && this.shots[0].tick < cutoff) this.shots.shift();
     const hits: Shot[] = [];

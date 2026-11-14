@@ -13,7 +13,7 @@ import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
-import { CHARACTERS, initialMatchSetup, PLAYER_ID, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
+import { CHARACTERS, initialMatchSetup, PLAYER_ID, RoundPreparation, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
 import { settingsPanel, type InputMode } from "./web/settings.ts";
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -47,6 +47,10 @@ const game = new Game<"briefing" | "match">({
 });
 const clock = get<HTMLTimeElement>("clock");
 const overlay = get("overlay");
+const preparationView = get("preparation");
+const preparationTitle = get("preparation-heading");
+const skipPreparation = get<HTMLButtonElement>("skip-preparation");
+let preparation: RoundPreparation | undefined;
 const headline = get("headline");
 const mission = get("mission");
 const start = get<HTMLButtonElement>("start");
@@ -146,11 +150,12 @@ game.scene("briefing", () => {});
 
 game.scene("match", (context) => {
   const arena = setup.arena;
+  const intro = new RoundPreparation(true);
   const sites = siteHud(arena);
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
   const battle = new Battle(context.scene, atlas, seconds, (fighter, state) =>
-    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena);
+    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false);
   const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
   const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
   const fog = createFog(game, get("battlefield"), vision, arena);
@@ -175,7 +180,20 @@ game.scene("match", (context) => {
   });
   const labels = createField(game, context.scene, get("map-labels"), battle, player, vision);
   context.onActivate(() => {
+    display(get("blue-score"), 0);
+    display(get("red-score"), 0);
+    showClock(battle.remaining);
+    showVitals("hp", player.hp);
+    showVitals("shield", player.shield);
+    get("respawn").hidden = true;
     currentInput = input;
+    preparation = intro;
+    app.dataset.phase = intro.phase;
+    preparationView.hidden = false;
+    skipPreparation.hidden = false;
+    display(preparationTitle, "ラウンド準備");
+    display(get("preparation-time"), intro.remaining);
+    preparationTitle.focus({ preventScroll: true });
     app.dataset.map = arena.id;
     get("terrain-state").hidden = !arena.lanes.length;
     updateCameraLayout = () => {
@@ -194,7 +212,7 @@ game.scene("match", (context) => {
       labels();
       minimap.paint();
       input.paint(get("deploy-state").dataset.ready === "true");
-      if (resultShown) touchView.layer.hidden = true;
+      if (resultShown || intro.phase !== "combat") touchView.layer.hidden = true;
     };
     fog.mount();
     minimap.mount();
@@ -202,7 +220,6 @@ game.scene("match", (context) => {
     roster.paint();
     active = true;
     resultShown = false;
-    game.element.focus({ preventScroll: true });
   });
   context.onDispose(() => {
     fog.dispose();
@@ -210,12 +227,31 @@ game.scene("match", (context) => {
     roster.dispose();
     if (currentInput === input) {
       currentInput = undefined;
+      preparation = undefined;
+      preparationView.hidden = true;
       updateCameraLayout = undefined;
       paintOverlay = undefined;
     }
   });
 
   context.onUpdate(() => {
+    if (intro.phase !== "combat") {
+      const phase = intro.advance();
+      app.dataset.phase = phase;
+      if (phase === "combat") {
+        preparationView.hidden = true;
+        battle.start();
+        input.updateSettings(settings);
+        game.element.focus({ preventScroll: true });
+      } else {
+        display(preparationTitle, phase === "preparation" ? "ラウンド準備" : "戦闘開始まで");
+        display(get("preparation-time"), intro.remaining);
+        if (phase === "countdown" && !skipPreparation.hidden) {
+          skipPreparation.hidden = true;
+          preparationTitle.focus({ preventScroll: true });
+        }
+      }
+    }
     display(get("blue-score"), battle.scores.blue);
     display(get("red-score"), battle.scores.red);
     showClock(battle.remaining);
@@ -225,7 +261,7 @@ game.scene("match", (context) => {
     respawn.hidden = player.hp > 0 || battle.result !== null;
     if (!respawn.hidden) display(respawn, `復活まで ${Math.ceil((player.downUntil - battle.tick) / HZ)}秒`);
     const availableSite = battle.sites.find((site) => distance(player.position, site) <= SITE_RADIUS);
-    const deploy = player.hp > 0 && !!availableSite && !availableSite.device && availableSite.owner !== player.team;
+    const deploy = intro.phase === "combat" && player.hp > 0 && !!availableSite && !availableSite.device && availableSite.owner !== player.team;
     const deployState = get("deploy-state");
     deployState.dataset.ready = String(deploy);
     display(deployState, deploy ? `${availableSite.id}に装置を設置できる`
@@ -353,6 +389,9 @@ lobbyReady.addEventListener("click", () => {
   updateReady();
 }, { signal: life.signal });
 lobbyStart.addEventListener("click", startMatch, { signal: life.signal });
+skipPreparation.addEventListener("click", () => {
+  preparation?.skipPreparation();
+}, { signal: life.signal });
 start.addEventListener("click", startMatch, { signal: life.signal });
 function openSettings() {
   if (transition || dialog.open) return;
@@ -362,7 +401,7 @@ function openSettings() {
 for (const id of ["open-settings", "title-settings"]) get(id).addEventListener("click", openSettings, { signal: life.signal });
 dialog.addEventListener("close", () => {
   game.resume();
-  if (active) game.element.focus({ preventScroll: true });
+  if (active) (preparationView.hidden ? game.element : preparationTitle).focus({ preventScroll: true });
   if (resultShown) touchView.layer.hidden = true;
 }, { signal: life.signal });
 function dispose() {

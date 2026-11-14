@@ -100,6 +100,13 @@
           <div id="touch-deploy" class="touch-button">設置</div>
         </div>
         <div id="respawn" class="respawn" role="status" hidden></div>
+        <section id="preparation" class="overlay" aria-labelledby="preparation-heading" hidden>
+          <div class="preparation-panel">
+            <h2 id="preparation-heading" tabindex="-1">ラウンド準備</h2>
+            <output id="preparation-time" aria-label="開始までの秒数" aria-live="off"></output>
+            <button id="skip-preparation" class="primary" type="button">準備をスキップ</button>
+          </div>
+        </section>
         <section id="overlay" class="overlay" aria-label="マッチメニュー" hidden>
           <div class="briefing">
             <h1 id="headline">Straidhold</h1>

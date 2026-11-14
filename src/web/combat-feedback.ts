@@ -44,6 +44,7 @@ export function createCombatFeed(host: HTMLElement, player: string, team: Team) 
       node.title = text;
       node.dataset.team = event.team;
       node.dataset.kind = event.kind;
+      node.dataset.sequence = String(event.sequence);
       node.dataset.personal = String(personal);
       host.append(node);
       visible.push({ node, expires: tick + FEED_TICKS });

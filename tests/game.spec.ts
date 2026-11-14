@@ -315,6 +315,16 @@ test("the follow camera stays at the last position during death and returns to H
   const player = page.locator(".minimap-player");
   const respawn = page.locator("#respawn");
   const homeY = Number(await camera.getAttribute("y"));
+  await page.evaluate(() => {
+    const edge = document.querySelector<HTMLElement>("#damage-edge")!;
+    const vitals = document.querySelector<HTMLElement>("#vitals")!;
+    const observed = new Set<string>();
+    new MutationObserver(() => {
+      const type = edge.dataset.impact;
+      if (type && type === vitals.dataset.impact && !edge.hidden) observed.add(type);
+      vitals.dataset.observedImpacts = Array.from(observed).join(" ");
+    }).observe(edge, { attributes: true, attributeFilter: ["data-impact"] });
+  });
   await page.keyboard.down("w");
   for (let i = 0; i < 12; i++) {
     const transform = await player.getAttribute("transform");
@@ -327,7 +337,9 @@ test("the follow camera stays at the last position during death and returns to H
   for (let i = 0; i < 18 && !await respawn.isVisible(); i++) await page.clock.runFor(800);
   await expect(respawn).toBeVisible();
   await expect(respawn).toContainText("撃破された");
-  await expect(page.locator('#combat-feed li[data-kind="defeat"][data-personal="true"]').last()).toContainText("に撃破された");
+  await expect(page.locator("#vitals")).toHaveAttribute("data-observed-impacts", /shield.*hp.*lethal/);
+  const defeat = page.locator('#combat-feed li[data-kind="defeat"][data-personal="true"]').last();
+  await expect(defeat).toContainText("に撃破された");
   await expect(player).not.toHaveAttribute("transform");
   const deathY = await camera.getAttribute("y");
   await page.clock.runFor(600);
@@ -498,7 +510,11 @@ test.describe("held touch input during capture", () => {
       await page.clock.runFor(430);
     }
     await expect(forward).toHaveAttribute("data-supply", "linked");
-    await expect(page.locator('#combat-feed li[data-kind="capture"][data-personal="true"]')).toContainText("拠点Dの占領に成功");
+    const notice = page.locator('#combat-feed li[data-kind="capture"][data-personal="true"]').filter({ hasText: "拠点Dの占領に成功" });
+    await expect(notice).toHaveCount(1);
+    const order = await page.locator("#combat-feed li").evaluateAll((rows) => rows.map((row) => Number((row as HTMLElement).dataset.sequence)));
+    expect(order).toEqual([...new Set(order)].sort((a, b) => a - b));
+    expect(order.length).toBeLessThanOrEqual(5);
     await expect(progress).toBeHidden();
     expect(Number(await page.locator("#blue-score").textContent())).toBeGreaterThan(0);
     expect(await battlefield.boundingBox()).toEqual(initialBounds);
@@ -513,6 +529,8 @@ test.describe("held touch input during capture", () => {
     const stopped = await playerX();
     await page.clock.runFor(260);
     expect(await playerX()).toBe(stopped);
+    await page.clock.runFor(5050);
+    await expect(notice).toHaveCount(0);
   });
 });
 
@@ -559,6 +577,7 @@ test.describe("attack stick", () => {
     await touch("touchEnd", []);
     await page.clock.runFor(700);
     await expect(attack).toHaveText("攻撃待機");
+    await expect(page.locator("#hit-marker")).toBeHidden();
 
     await touch("touchStart", [right]);
     await touch("touchMove", [{ ...right, x: right.x + 3 }]);

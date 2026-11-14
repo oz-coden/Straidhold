@@ -349,6 +349,7 @@ async function startMatch(next: MatchSeries) {
   start.disabled = lobbyStart.disabled = true;
   series = next;
   results.clear();
+  get("round-results").replaceChildren();
   showScreen(screens, "battle");
   try {
     await game.changeScene("match");

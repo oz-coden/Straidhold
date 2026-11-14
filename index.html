@@ -108,6 +108,8 @@
       <section id="battlefield" class="battlefield" aria-label="戦場">
         <div id="game"></div>
         <div id="map-labels" aria-hidden="true"></div>
+        <div id="damage-edge" aria-hidden="true" hidden></div>
+        <span id="hit-marker" aria-hidden="true" hidden></span>
         <ol id="combat-feed" aria-label="戦況通知"></ol>
         <div id="touch-controls" hidden>
           <div id="stick" class="touch-stick" aria-label="移動スティック"><span id="knob" class="stick-knob"></span></div>
@@ -126,7 +128,7 @@
         <div id="rotate" aria-hidden="true">横画面にすると操作しやすくなります</div>
       </section>
       <footer id="hud" class="match-footer">
-        <div class="vitals">
+        <div id="vitals" class="vitals">
           <div class="vital"><label for="hp">HP</label><meter id="hp" min="0" max="100" value="100"></meter><output id="hp-value">100</output></div>
           <div class="vital"><label for="shield">シールド</label><meter id="shield" min="0" max="100" value="100"></meter><output id="shield-value">100</output></div>
         </div>

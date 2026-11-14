@@ -11,6 +11,7 @@ import { createFog } from "./web/fog.ts";
 import { createMinimap, mapPreview } from "./web/minimap.ts";
 import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
+import { createHitFeedback } from "./web/hit-feedback.ts";
 import { createCombatFeed } from "./web/combat-feedback.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
@@ -154,6 +155,7 @@ game.scene("match", (context) => {
   const arena = match.setup.arena;
   const intro = new RoundPreparation(match.rounds.length === 0);
   let finished = false;
+  let playerHitAt = -Infinity;
   const sites = siteHud(arena);
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
@@ -161,6 +163,7 @@ game.scene("match", (context) => {
     fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false, match.rounds.length + 1);
   const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
   const feed = createCombatFeed(get("combat-feed"), player.id, player.team);
+  const feedback = createHitFeedback(get("hit-marker"), get("damage-edge"), get("vitals"), player.id);
   const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
   const fog = createFog(game, get("battlefield"), vision, arena);
   const minimap = createMinimap(game, get("battlefield"), battle, player, vision, fog.mask);
@@ -233,6 +236,7 @@ game.scene("match", (context) => {
   });
   context.onDispose(() => {
     feed.dispose();
+    feedback.dispose();
     fog.dispose();
     minimap.dispose();
     roster.dispose();
@@ -270,7 +274,7 @@ game.scene("match", (context) => {
     showVitals("shield", player.shield);
     const respawn = get("respawn");
     respawn.hidden = player.hp > 0 || battle.result !== null;
-    if (!respawn.hidden) display(respawn, `復活まで ${Math.ceil((player.downUntil - battle.tick) / HZ)}秒`);
+    if (!respawn.hidden) display(respawn, `撃破された · 復活まで ${Math.ceil((player.downUntil - battle.tick) / HZ)}秒`);
     const availableSite = battle.sites.find((site) => distance(player.position, site) <= SITE_RADIUS);
     const deploy = intro.phase === "combat" && player.hp > 0 && !!availableSite && !availableSite.device && availableSite.owner !== player.team;
     const deployState = get("deploy-state");
@@ -288,7 +292,9 @@ game.scene("match", (context) => {
     }
     const attack = get("attack-state");
     const hasTarget = player.target && vision.shows(player.target);
-    const fired = battle.shots.some(({ from }) => from === player);
+    if (battle.combatEvents.some((event) => event.kind === "damage" && event.attacker === player.id)) playerHitAt = battle.tick;
+    const fired = battle.tick - playerHitAt <= Math.round(HZ * 0.22);
+    feedback.update(battle.combatEvents, battle.tick);
     display(attack, player.hp <= 0 ? "攻撃不可" : fired ? "攻撃命中" : player.command.attack && !hasTarget ? "射程内に有効な対象なし"
       : battle.tick < player.attackAt ? "攻撃クールダウン" : hasTarget ? "攻撃対象を捕捉" : "攻撃待機");
     roster.paint();

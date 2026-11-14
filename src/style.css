@@ -459,3 +459,31 @@ dialog button { justify-self: end; }
 @media (orientation: portrait) and (pointer: coarse) {
   #combat-feed { top: 24px; max-height: calc(46% - 24px); }
 }
+
+#hit-marker {
+  position: absolute;
+  z-index: 3;
+  inset: 43% auto auto 50%;
+  translate: -50% -50%;
+  pointer-events: none;
+  font: 800 clamp(26px, 6vmin, 40px)/1 system-ui, sans-serif;
+  color: var(--blue);
+  text-shadow: 0 1px 4px #06111e, 0 0 6px #06111e;
+}
+#hit-marker[data-impact="hp"] { color: #ffe1cf; }
+#hit-marker[data-impact="lethal"] { color: var(--gold); font-size: clamp(33px, 8vmin, 48px); }
+#damage-edge {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 21px 2px #63d9fc66;
+}
+#damage-edge[data-impact="hp"] { box-shadow: inset 0 0 24px 3px #ff958c77; }
+#damage-edge[data-impact="lethal"] { box-shadow: inset 0 0 28px 4px #ff958c88; }
+#vitals[data-impact="shield"] .vital:has(#shield) { box-shadow: inset 2px 0 var(--blue); }
+#vitals[data-impact="hp"] .vital:has(#hp),
+#vitals[data-impact="lethal"] .vital:has(#hp) { box-shadow: inset 2px 0 var(--red); }
+@media (prefers-reduced-motion: reduce) {
+  #damage-edge { display: none; }
+}

@@ -83,7 +83,7 @@ function showVitals(id: "hp" | "shield", value: number) {
 const names = { blue: "青", red: "赤", neutral: "中立" };
 const hints: Record<InputMode, string> = {
   keyboard: "WASD 移動 · 左クリック 攻撃 · E 設置",
-  touch: "左スティック 移動 · 右スティック 方向を指定して攻撃",
+  touch: "左：移動 · 右：押すと自動照準、倒すと方向指定",
   gamepad: "左/右スティック 移動/照準 · RT/R1 攻撃 · 西ボタン 設置",
 };
 function announceMode(mode: InputMode) {

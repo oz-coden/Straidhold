@@ -5,7 +5,7 @@ import {
 import { toward } from "../rules/arena.ts";
 import { ZERO, type Command } from "../rules/command.ts";
 import type { InputMode, Settings } from "./settings.ts";
-import { manualTouchAim } from "./touch-attack.ts";
+import { touchAttack } from "./touch-attack.ts";
 
 const Keyboard = defineActions({ move: Action.axis2D(), deploy: Action.button() });
 const Touch = defineActions({ move: Action.axis2D(), aim: Action.axis2D(), deploy: Action.button() });
@@ -215,8 +215,11 @@ export function createInput(game: MatchGame, context: SceneContext, initial: Set
     if (settings.mode === "auto" && mode === "gamepad" && !padSource.connected) setMode(initialInputMode());
 
     if (mode === "touch") {
-      const direction = manualTouchAim(aimStick.pressed, touch.value(Touch.aim));
-      return { move: touch.value(Touch.move), aim: direction, attack: direction !== null, deploy: touch.pressed(Touch.deploy) };
+      return {
+        move: touch.value(Touch.move),
+        ...touchAttack(aimStick.pressed, touch.value(Touch.aim)),
+        deploy: touch.pressed(Touch.deploy),
+      };
     }
     if (mode === "gamepad") {
       if (hasDirection(aim)) padAim = aim;

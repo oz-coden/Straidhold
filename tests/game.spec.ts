@@ -37,6 +37,7 @@ test("desktop plays the production build through attack, capture, result and rem
   const errors = await startMatch(page);
   const canvas = page.locator("#game canvas");
   await expect(canvas).toHaveCount(1);
+  await expect(page.locator("#current-streak")).toHaveText("0");
   const battlefield = (await canvas.boundingBox())!;
   await page.keyboard.down("w");
   await page.mouse.move(battlefield.x + battlefield.width * 0.5, battlefield.y + battlefield.height * 0.3);
@@ -59,17 +60,31 @@ test("desktop plays the production build through attack, capture, result and rem
   await expect(page.locator("#start")).toHaveText("再戦");
   const results = page.locator("#participant-results");
   await expect(results.locator("[data-participant]")).toHaveCount(10);
+  const awards = page.locator("#match-awards");
+  await expect(awards.locator('[data-award="mvp"]')).toContainText("+100 pt / 人");
+  await expect(awards.locator('[data-award="team-mvp"]')).toHaveCount(2);
+  await expect(awards.locator('[data-award="movement"]')).toHaveCount(2);
   const playerRow = results.locator('[data-participant="blue-2"]');
   await expect(playerRow.getByRole("rowheader")).toHaveText("BLUE 3（自分）");
   expect(Number(await playerRow.locator("td").nth(3).textContent())).toBeGreaterThan(0);
   await playerRow.locator("summary").click({ force: true });
   await expect(results.getByText("占領維持", { exact: true }).filter({ visible: true })).toHaveCount(1);
+  await expect(results.getByText("最大キルストリーク", { exact: true }).filter({ visible: true })).toHaveCount(1);
+  await expect(results.getByText("表彰ボーナス", { exact: true }).filter({ visible: true })).toHaveCount(1);
+  await expect(playerRow.locator("summary")).toHaveText(/^[\d,]+ pt$/);
+  await page.locator("#result-round-select").selectOption("1");
+  await playerRow.locator("summary").click();
+  await expect(results.getByText("表彰ボーナス", { exact: true })).toHaveCount(0);
+  await expect(results.getByRole("columnheader", { name: "基礎貢献pt" })).toHaveCount(2);
+  await page.locator("#result-round-select").selectOption("0");
 
   await startCombat(page, "#start");
   await page.clock.runFor(100);
   await expect(page.locator("#clock")).toHaveText("00:22");
   await expect(page.locator("#blue-score")).toHaveText("0");
   await expect(results.locator("[data-participant]")).toHaveCount(0);
+  await expect(awards.locator("li")).toHaveCount(0);
+  await expect(page.locator("#current-streak")).toHaveText("0");
   await expect(page.locator("#combat-feed li")).toHaveCount(0);
   await expect(page.locator("#map-labels .map-label")).toHaveCount(5);
   await expect(page.locator(".fog")).toHaveCount(1);
@@ -773,6 +788,7 @@ test("series retains round results and resets the battlefield for the next round
   await startCombat(page);
   await page.clock.runFor(5200);
   await expect(page.locator("#result-round")).toHaveText("第1ラウンド終了");
+  await expect(page.locator("#match-awards")).toBeHidden();
   await expect(page.locator("#round-results li")).toHaveCount(1);
   const rows = page.locator("#participant-results [data-participant]");
   await expect(rows).toHaveCount(10);

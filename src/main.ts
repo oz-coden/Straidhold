@@ -199,6 +199,7 @@ game.scene("match", (context) => {
     deployState.dataset.ready = "false";
     display(deployState, "拠点に近づくと設置可能");
     display(get("attack-state"), "攻撃待機");
+    display(get("current-streak"), 0);
     currentInput = input;
     preparation = intro;
     app.dataset.phase = intro.phase;
@@ -272,6 +273,7 @@ game.scene("match", (context) => {
     display(get("blue-score"), battle.scores.blue);
     display(get("red-score"), battle.scores.red);
     showClock(battle.remaining);
+    display(get("current-streak"), battle.currentStreak(player.id));
     showVitals("hp", player.hp);
     showVitals("shield", player.shield);
     const respawn = get("respawn");

@@ -1,5 +1,6 @@
 import type { Team } from "../rules/arena.ts";
 import { HZ } from "../rules/battle.ts";
+import { STREAK_MILESTONES } from "../rules/contribution.ts";
 import type { CombatEvent } from "../rules/combat-events.ts";
 
 export const FEED_LIMIT = 5;
@@ -15,12 +16,20 @@ export function participantLabel(id: string) {
 
 function feedMessage(event: Exclude<CombatEvent, { kind: "damage" }>, player: string, team: Team) {
   if (event.kind === "defeat") {
-    const { attacker, target, assists } = event;
-    if (target === player) return { text: `${participantLabel(attacker)} に撃破された`, personal: true };
-    if (attacker === player) return { text: `${participantLabel(target)} を撃破`, personal: true };
+    const { attacker, target, assists, streak, stoppedStreak } = event;
+    const killer = participantLabel(attacker);
+    const defeated = participantLabel(target);
     const assisted = assists.includes(player);
-    const text = `${participantLabel(attacker)} が ${participantLabel(target)} を撃破`;
-    return { text: assisted ? `${text}（アシスト）` : text, personal: assisted };
+    const personal = assisted || attacker === player || target === player;
+    const milestone = STREAK_MILESTONES.includes(streak);
+    const stopped = stoppedStreak >= STREAK_MILESTONES[0];
+    const defeat = target === player ? `${killer} に撃破された`
+      : attacker === player ? `${defeated} を撃破` : `${killer} が ${defeated} を撃破`;
+    const text = stopped ? `${killer} が ${defeated} の${stoppedStreak}連続キルを阻止！`
+      : milestone ? `${killer} が${streak}連続キル！ (${defeated} を撃破)` : defeat;
+    const withMilestone = stopped && milestone ? `${text} · ${killer} が${streak}連続キル！` : text;
+    return { text: assisted ? `${withMilestone}（アシスト）` : withMilestone, personal,
+      highlight: stopped ? "shutdown" : milestone ? "streak" : undefined };
   }
   const personal = event.installer === player || event.guards.includes(player);
   if (personal) return { text: `拠点${event.site}の占領に成功`, personal };
@@ -38,12 +47,13 @@ export function createCombatFeed(host: HTMLElement, player: string, team: Team) 
       if (event.sequence <= sequence) continue;
       sequence = event.sequence;
       if (event.kind === "damage") continue;
-      const { text, personal } = feedMessage(event, player, team);
+      const { text, personal, highlight } = feedMessage(event, player, team);
       const node = document.createElement("li");
       node.textContent = text;
       node.title = text;
       node.dataset.team = event.team;
       node.dataset.kind = event.kind;
+      if (highlight) node.dataset.highlight = highlight;
       node.dataset.sequence = String(event.sequence);
       node.dataset.personal = String(personal);
       host.append(node);

@@ -420,13 +420,13 @@ dialog button { justify-self: end; }
 #combat-feed {
   position: absolute;
   z-index: 3;
-  top: 6px;
   left: 6px;
   display: flex;
   flex-direction: column;
   justify-content: end;
   width: min(43%, 16rem);
-  max-height: calc(46% - 6px);
+  max-height: calc(46% - 24px);
+  top: 24px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -457,7 +457,7 @@ dialog button { justify-self: end; }
   #combat-feed li { padding-block: 0; font-size: 10px; }
 }
 @media (orientation: portrait) and (pointer: coarse) {
-  #combat-feed { top: 24px; max-height: calc(46% - 24px); }
+  #combat-feed { top: 39px; max-height: calc(46% - 39px); }
 }
 
 #hit-marker {
@@ -505,4 +505,24 @@ dialog button { justify-self: end; }
 .participant-results dd { margin: 0; text-align: right; }
 @media (max-width: 700px) {
   .participant-results { grid-template-columns: 1fr; gap: 12px; }
+}
+
+
+#streak-hud {
+  position: absolute;
+  z-index: 3;
+  top: 5px;
+  left: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #081522dd;
+  color: #ebf5ff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+#streak-hud output { color: var(--gold); font-weight: 800; }
+#combat-feed li[data-highlight] { border-inline-start-color: var(--gold); }
+@media (orientation: portrait) and (pointer: coarse) {
+  #streak-hud { top: 22px; }
 }

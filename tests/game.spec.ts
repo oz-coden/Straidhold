@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
+async function freezeClock(page: Page) {
+  const time = new Date("2026-01-01T00:00:00Z");
+  await page.clock.install({ time });
+  await page.clock.pauseAt(new Date(time.getTime() + 60_000));
+}
+
 async function enterLobby(page: Page) {
   await page.locator("#setup-next").click();
   await page.locator("#character-next").click();
@@ -18,11 +24,10 @@ async function startCombat(page: Page, button = "#lobby-start") {
 async function startMatch(page: Page, seconds = 22, map = "training") {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.clock.install();
+  await freezeClock(page);
   await page.goto(`/?map=${map}&round=${seconds}`);
   await page.locator("#solo").click();
   await enterLobby(page);
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
   await startCombat(page);
   return errors;
 }
@@ -335,10 +340,9 @@ test("all five tactical maps launch with their own layout and allow changing map
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 760, height: 430 });
-  await page.clock.install();
+  await freezeClock(page);
   await page.goto("/?round=5");
   await page.locator("#solo").click();
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
   const picker = page.getByRole("combobox", { name: "戦場", exact: true });
   const panel = page.locator(".minimap");
   await expect(picker).toHaveValue(layouts[0][0]);
@@ -401,13 +405,12 @@ test.describe("tactical map on a small touch screen", () => {
   test.use({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
 
   test("keeps the map picker and seven objectives usable during multi-touch movement", async ({ page }) => {
-    await page.clock.install();
+    await freezeClock(page);
     await page.goto("/?map=cross-supply&round=20");
     await page.locator("#solo").click();
     await expect(page.getByRole("combobox", { name: "戦場", exact: true })).toBeInViewport();
     await enterLobby(page);
     await expect(page.locator("#lobby-start")).toBeInViewport();
-    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
     await startCombat(page);
     const markers = page.locator("#sites .site");
     await expect(markers).toHaveCount(7);
@@ -683,11 +686,10 @@ test("title, setup, character and ready lobby retain selections and allow return
 test("preparation freezes both teams and leaving releases the active round", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.clock.install();
+  await freezeClock(page);
   await page.goto("/?map=training&round=5");
   await page.locator("#solo").click();
   await enterLobby(page);
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
   await page.locator("#lobby-start").click({ force: true });
   await expect(page.locator("#preparation-time")).toHaveText("10");
   await page.clock.runFor(50);
@@ -723,12 +725,11 @@ test("preparation freezes both teams and leaving releases the active round", asy
 });
 
 test("series retains round results and resets the battlefield for the next round", async ({ page }) => {
-  await page.clock.install();
+  await freezeClock(page);
   await page.goto("/?map=training&round=5");
   await page.locator("#solo").click();
   await page.locator("#rule-select").selectOption("series");
   await enterLobby(page);
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
   await startCombat(page);
   await page.clock.runFor(5200);
   await expect(page.locator("#result-round")).toHaveText("第1ラウンド終了");

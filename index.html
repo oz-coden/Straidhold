@@ -7,9 +7,93 @@
     <title>Straidhold</title>
   </head>
   <body>
-    <main id="app">
+    <section id="title-screen" class="flow-screen title-screen" aria-labelledby="title-heading">
+      <div class="flow-panel title-panel">
+        <h1 id="title-heading" tabindex="-1" data-screen-focus>Straidhold</h1>
+        <p class="flow-muted">5対5の拠点占領戦 <small class="title-version">v0.3.0</small></p>
+        <nav class="title-menu" aria-label="メインメニュー">
+          <button id="solo" class="primary" type="button">ソロモード</button>
+          <button class="secondary" type="button" disabled>ストーリーモード <small>準備中</small></button>
+          <button class="secondary" type="button" disabled>マルチプレイ（参加） <small>準備中</small></button>
+          <button class="secondary" type="button" disabled>マルチプレイ（ホスト） <small>準備中</small></button>
+          <button id="title-settings" class="secondary" type="button">設定</button>
+        </nav>
+      </div>
+    </section>
+
+    <section id="setup-screen" class="flow-screen" aria-labelledby="setup-heading" hidden>
+      <div class="flow-panel">
+        <h1 id="setup-heading" tabindex="-1" data-screen-focus>ソロ対戦の設定</h1>
+        <p id="briefing-mode" class="flow-muted">5対5 / 拠点占領</p>
+        <div class="map-picker">
+          <label for="map-select">戦場</label>
+          <select id="map-select"></select>
+          <div id="map-preview" aria-hidden="true"></div>
+          <p id="map-description"></p>
+          <label for="rule-select">ルール</label>
+          <select id="rule-select"></select>
+        </div>
+        <div class="flow-actions">
+          <button id="setup-back" class="secondary" type="button">戻る</button>
+          <button id="setup-next" class="primary" type="button">キャラクター選択</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="character-screen" class="flow-screen" aria-labelledby="character-heading" hidden>
+      <div class="flow-panel">
+        <h1 id="character-heading" tabindex="-1" data-screen-focus>キャラクター選択</h1>
+        <p class="flow-muted">試作版ではすべてのクラスが同じ性能で戦います。</p>
+        <fieldset id="character-choice" class="character-choice">
+          <legend>クラス</legend>
+        </fieldset>
+        <div class="flow-actions">
+          <button id="character-back" class="secondary" type="button">戻る</button>
+          <button id="character-next" class="primary" type="button">対戦ロビーへ</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="lobby-screen" class="flow-screen" aria-labelledby="lobby-heading" hidden>
+      <div class="flow-panel">
+        <h1 id="lobby-heading" tabindex="-1" data-screen-focus>対戦ロビー</h1>
+        <p id="lobby-summary" class="flow-muted"></p>
+        <div class="lobby-teams">
+          <section aria-labelledby="lobby-blue-heading" data-team="blue">
+            <h2 id="lobby-blue-heading">BLUE</h2>
+            <ol id="lobby-blue"></ol>
+          </section>
+          <section aria-labelledby="lobby-red-heading" data-team="red">
+            <h2 id="lobby-red-heading">RED</h2>
+            <ol id="lobby-red"></ol>
+          </section>
+        </div>
+        <p id="lobby-error" role="alert" hidden></p>
+        <div class="flow-actions">
+          <button id="lobby-back" class="secondary" type="button">戻る</button>
+          <button id="lobby-ready" class="secondary" type="button" aria-pressed="false">準備完了</button>
+          <button id="lobby-start" class="primary" type="button" disabled>試合開始</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="result-screen" class="flow-screen" aria-labelledby="headline" hidden>
+      <div class="flow-panel">
+        <p id="result-round" class="flow-muted"></p>
+        <h1 id="headline" tabindex="-1" data-screen-focus></h1>
+        <p id="mission" class="flow-muted"></p>
+        <ol id="round-results"></ol>
+        <div class="flow-actions">
+          <button id="result-title" class="secondary" type="button">タイトルへ</button>
+          <button id="result-setup" class="secondary" type="button">対戦設定へ</button>
+          <button id="start" class="primary" type="button">再戦</button>
+        </div>
+      </div>
+    </section>
+
+    <main id="app" aria-label="対戦" hidden>
       <header class="match-header">
-        <div class="wordmark">STRAIDHOLD <span>試作 0.2.4</span></div>
+        <div><button id="leave-battle" class="secondary" type="button">タイトルへ</button></div>
         <div class="scoreboard" aria-label="スコアと残り時間">
           <span class="score blue"><span>青</span> <strong id="blue-score">0</strong></span>
           <time id="clock">05:00</time>
@@ -30,18 +114,12 @@
           <div id="touch-deploy" class="touch-button">設置</div>
         </div>
         <div id="respawn" class="respawn" role="status" hidden></div>
-        <section id="overlay" class="overlay" aria-label="マッチメニュー">
-          <div class="briefing">
-            <p id="briefing-mode" class="eyebrow">5対5 / 拠点占領</p>
-            <h1 id="headline">Straidhold</h1>
-            <p id="mission">占領装置を設置し、起動まで拠点を守れ。</p>
-            <div class="map-picker">
-              <label for="map-select">戦場</label>
-              <select id="map-select"></select>
-              <div id="map-preview" aria-hidden="true"></div>
-              <p id="map-description"></p>
-            </div>
-            <button id="start" class="primary" type="button" disabled>試合開始</button>
+        <section id="preparation" class="overlay" aria-labelledby="preparation-heading" hidden>
+          <div class="preparation-panel">
+            <h2 id="preparation-heading" tabindex="-1">ラウンド準備</h2>
+            <span id="round-status"></span>
+            <output id="preparation-time" aria-label="開始までの秒数" aria-live="off"></output>
+            <button id="skip-preparation" class="primary" type="button">準備をスキップ</button>
           </div>
         </section>
         <div id="rotate" aria-hidden="true">横画面にすると操作しやすくなります</div>
@@ -55,6 +133,16 @@
         <div id="input-hint" class="input-hint"></div>
       </footer>
     </main>
+
+    <dialog id="leave-dialog" aria-labelledby="leave-heading">
+      <form method="dialog">
+        <h2 id="leave-heading">対戦を終了しますか？</h2>
+        <div class="flow-actions">
+          <button value="stay" class="secondary" autofocus>対戦に戻る</button>
+          <button value="leave" class="primary">タイトルへ</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="settings" aria-labelledby="settings-title">
       <form method="dialog">

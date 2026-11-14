@@ -13,10 +13,20 @@ import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
+import { CHARACTERS, initialMatchSetup, MatchSeries, PLAYER_ID, RoundPreparation, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
 import { settingsPanel, type InputMode } from "./web/settings.ts";
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = get("app");
+const screens = {
+  title: get("title-screen"), setup: get("setup-screen"), character: get("character-screen"),
+  lobby: get("lobby-screen"), battle: app, result: get("result-screen"),
+};
+const lobbyStart = get<HTMLButtonElement>("lobby-start");
+const lobbyReady = get<HTMLButtonElement>("lobby-ready");
+const lobbyError = get("lobby-error");
+let ready = false;
+let rendererReady = false;
 let updateCameraLayout: (() => void) | undefined;
 let paintOverlay: (() => void) | undefined;
 const game = new Game<"briefing" | "match">({
@@ -36,11 +46,15 @@ const game = new Game<"briefing" | "match">({
   tokens: { background: "#080f18" },
 });
 const clock = get<HTMLTimeElement>("clock");
-const overlay = get("overlay");
+const preparationView = get("preparation");
+const preparationTitle = get("preparation-heading");
+const skipPreparation = get<HTMLButtonElement>("skip-preparation");
+let preparation: RoundPreparation | undefined;
 const headline = get("headline");
 const mission = get("mission");
 const start = get<HTMLButtonElement>("start");
 const dialog = get<HTMLDialogElement>("settings");
+const leaveDialog = get<HTMLDialogElement>("leave-dialog");
 const life = new AbortController();
 const touchView = {
   layer: get("touch-controls"),
@@ -55,6 +69,7 @@ function siteHud(arena: Arena) {
   return arena.sites.map(({ id }) => {
     const row = document.createElement("div");
     row.className = "site";
+    row.dataset.owner = "neutral";
     const title = document.createElement("strong");
     const state = document.createElement("span");
     const progress = document.createElement("progress");
@@ -91,26 +106,29 @@ function announceMode(mode: InputMode) {
   display(get("input-hint"), hints[mode]);
 }
 
-const query = new URLSearchParams(location.search);
+let setup = initialMatchSetup(new URLSearchParams(location.search));
 const selector = get<HTMLSelectElement>("map-select");
 for (const { id, name } of arenas) selector.add(new Option(name, id));
-let selected = arenas.find(({ id }) => id === query.get("map")) ?? arenas[0];
-selector.value = selected.id;
+selector.value = setup.arena.id;
+const rule = get<HTMLSelectElement>("rule-select");
+for (const [id, { label }] of Object.entries(RULES)) rule.add(new Option(label, id));
+rule.value = setup.rule;
+rule.addEventListener("change", () => {
+  setup = { ...setup, rule: rule.value as RuleId };
+}, { signal: life.signal });
 function updateBriefing() {
-  get("map-preview").replaceChildren(mapPreview(selected));
-  display(get("map-description"), selected.description);
+  get("map-preview").replaceChildren(mapPreview(setup.arena));
+  display(get("map-description"), setup.arena.description);
 }
 selector.addEventListener("change", () => {
-  selected = arenas.find(({ id }) => id === selector.value) ?? arenas[0];
+  const arena = arenas.find(({ id }) => id === selector.value);
+  if (!arena) return;
+  setup = { ...setup, arena };
   updateBriefing();
 }, { signal: life.signal });
 updateBriefing();
 
-const param = query.get("round");
-const requested = Number(param);
-const seconds = param && /^\d{1,3}$/.test(param) && requested >= 5 && requested <= ROUND_SECONDS
-  ? requested
-  : ROUND_SECONDS;
+const seconds = setup.roundSeconds;
 if (seconds !== ROUND_SECONDS) display(get("briefing-mode"), `5対5 / テストラウンド ${seconds}秒`);
 
 function showClock(remaining: number) {
@@ -120,8 +138,7 @@ function showClock(remaining: number) {
 showClock(seconds);
 
 let currentInput: ReturnType<typeof createInput> | undefined;
-let active = false;
-let resultShown = false;
+let series: MatchSeries | undefined;
 let transition = false;
 const settings = settingsPanel(dialog, (next) => {
   currentInput?.updateSettings(next);
@@ -132,13 +149,16 @@ announceMode(settings.mode === "auto" ? initialInputMode() : settings.mode);
 game.scene("briefing", () => {});
 
 game.scene("match", (context) => {
-  const arena = selected;
+  const match = series!;
+  const arena = match.setup.arena;
+  const intro = new RoundPreparation(match.rounds.length === 0);
+  let finished = false;
   const sites = siteHud(arena);
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
-  const battle = new Battle(context.scene, atlas, seconds, (fighter, state) =>
-    fighter.id === "blue-2" ? input.sample(fighter.position) : ai(fighter, state), arena);
-  const player = battle.fighters[2];
+  const battle = new Battle(context.scene, atlas, match.setup.roundSeconds, (fighter, state) =>
+    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false);
+  const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
   const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
   const fog = createFog(game, get("battlefield"), vision, arena);
   const minimap = createMinimap(game, get("battlefield"), battle, player, vision, fog.mask);
@@ -162,7 +182,28 @@ game.scene("match", (context) => {
   });
   const labels = createField(game, context.scene, get("map-labels"), battle, player, vision);
   context.onActivate(() => {
+    display(get("blue-score"), 0);
+    display(get("red-score"), 0);
+    showClock(battle.remaining);
+    showVitals("hp", player.hp);
+    showVitals("shield", player.shield);
+    get("respawn").hidden = true;
+    const deployState = get("deploy-state");
+    deployState.dataset.ready = "false";
+    display(deployState, "拠点に近づくと設置可能");
+    display(get("attack-state"), "攻撃待機");
     currentInput = input;
+    preparation = intro;
+    app.dataset.phase = intro.phase;
+    preparationView.hidden = false;
+    skipPreparation.hidden = false;
+    display(preparationTitle, "ラウンド準備");
+    const { blue, red } = match.wins;
+    display(get("round-status"), match.setup.rule === "single"
+      ? ""
+      : `第${match.rounds.length + 1}ラウンド · 青 ${blue} — ${red} 赤`);
+    display(get("preparation-time"), intro.remaining);
+    preparationTitle.focus({ preventScroll: true });
     app.dataset.map = arena.id;
     get("terrain-state").hidden = !arena.lanes.length;
     updateCameraLayout = () => {
@@ -181,15 +222,12 @@ game.scene("match", (context) => {
       labels();
       minimap.paint();
       input.paint(get("deploy-state").dataset.ready === "true");
-      if (resultShown) touchView.layer.hidden = true;
+      if (finished || intro.phase !== "combat") touchView.layer.hidden = true;
     };
     fog.mount();
     minimap.mount();
     roster.mount();
     roster.paint();
-    active = true;
-    resultShown = false;
-    game.element.focus({ preventScroll: true });
   });
   context.onDispose(() => {
     fog.dispose();
@@ -197,12 +235,31 @@ game.scene("match", (context) => {
     roster.dispose();
     if (currentInput === input) {
       currentInput = undefined;
+      preparation = undefined;
+      preparationView.hidden = true;
       updateCameraLayout = undefined;
       paintOverlay = undefined;
     }
   });
 
   context.onUpdate(() => {
+    if (intro.phase !== "combat") {
+      const phase = intro.advance();
+      app.dataset.phase = phase;
+      if (phase === "combat") {
+        preparationView.hidden = true;
+        battle.start();
+        input.updateSettings(settings);
+        game.element.focus({ preventScroll: true });
+      } else {
+        display(preparationTitle, phase === "preparation" ? "ラウンド準備" : "戦闘開始まで");
+        display(get("preparation-time"), intro.remaining);
+        if (phase === "countdown" && !skipPreparation.hidden) {
+          skipPreparation.hidden = true;
+          preparationTitle.focus({ preventScroll: true });
+        }
+      }
+    }
     display(get("blue-score"), battle.scores.blue);
     display(get("red-score"), battle.scores.red);
     showClock(battle.remaining);
@@ -212,7 +269,7 @@ game.scene("match", (context) => {
     respawn.hidden = player.hp > 0 || battle.result !== null;
     if (!respawn.hidden) display(respawn, `復活まで ${Math.ceil((player.downUntil - battle.tick) / HZ)}秒`);
     const availableSite = battle.sites.find((site) => distance(player.position, site) <= SITE_RADIUS);
-    const deploy = player.hp > 0 && !!availableSite && !availableSite.device && availableSite.owner !== player.team;
+    const deploy = intro.phase === "combat" && player.hp > 0 && !!availableSite && !availableSite.device && availableSite.owner !== player.team;
     const deployState = get("deploy-state");
     deployState.dataset.ready = String(deploy);
     display(deployState, deploy ? `${availableSite.id}に装置を設置できる`
@@ -250,52 +307,181 @@ game.scene("match", (context) => {
         progress.dataset.team = device.team;
       }
     });
-    if (battle.result && !resultShown) {
-      resultShown = true;
-      active = false;
+    if (battle.result && !finished) {
+      finished = true;
       touchView.layer.hidden = true;
-      display(get("briefing-mode"), "ラウンド終了");
-      display(headline, battle.result === "draw" ? "引き分け" : `${names[battle.result]}チームの勝利`);
-      display(mission, `青 ${battle.scores.blue} — ${battle.scores.red} 赤`);
-      display(start, "再試合");
-      overlay.hidden = false;
-      start.focus({ preventScroll: true });
+      match.finishRound({ winner: battle.result, scores: battle.scores });
+      void showResult(match);
     }
   });
 });
 
 function report(error: unknown) {
   console.error(error);
-  display(mission, "戦場を読み込めませんでした。ページを再読み込みしてください。");
-  overlay.hidden = false;
+  lobbyError.textContent = "戦場を読み込めませんでした。ページを再読み込みしてください。";
+  lobbyError.hidden = false;
+  showScreen(screens, "lobby");
 }
 
-start.addEventListener("click", async () => {
+async function startMatch(next: MatchSeries) {
   if (transition) return;
   transition = true;
-  start.disabled = true;
+  start.disabled = lobbyStart.disabled = true;
+  series = next;
+  showScreen(screens, "battle");
   try {
     await game.changeScene("match");
     updateCameraLayout?.();
     paintOverlay?.();
-    overlay.hidden = true;
   } catch (error) {
+    await releaseBattle().catch(console.error);
+    series = undefined;
     report(error);
   } finally {
     start.disabled = false;
     transition = false;
+    updateReady();
+  }
+}
+
+async function releaseBattle() {
+  await game.changeScene("briefing");
+  get("sites").replaceChildren();
+  touchView.layer.hidden = true;
+  delete app.dataset.phase;
+  delete app.dataset.map;
+}
+
+async function showResult(match: MatchSeries) {
+  transition = true;
+  const winner = match.winner;
+  const last = match.rounds.at(-1)!;
+  const { blue, red } = match.wins;
+  display(get("result-round"), winner === null ? `第${match.rounds.length}ラウンド終了` : "試合結果");
+  const roundWinner = winner ?? last.winner;
+  display(headline, roundWinner === "draw" ? "引き分け" : `${names[roundWinner]}チームの勝利`);
+  display(mission, match.setup.rule === "single"
+    ? `青 ${last.scores.blue} — ${last.scores.red} 赤`
+    : `ラウンド勝利数　青 ${blue} — ${red} 赤`);
+  get("round-results").replaceChildren(...(match.setup.rule === "single" ? [] : match.rounds.map(({ winner, scores }) => {
+    const row = document.createElement("li");
+    row.textContent = `青 ${scores.blue} — ${scores.red} 赤 · ${winner === "draw" ? "引き分け" : `${names[winner]}の勝利`}`;
+    return row;
+  })));
+  display(start, winner === null ? "次のラウンド" : "再戦");
+  for (const button of [start, get<HTMLButtonElement>("result-title"), get<HTMLButtonElement>("result-setup")]) button.disabled = true;
+  showScreen(screens, "result");
+  try {
+    await releaseBattle();
+  } catch (error) {
+    report(error);
+  } finally {
+    transition = false;
+    for (const button of [start, get<HTMLButtonElement>("result-title"), get<HTMLButtonElement>("result-setup")]) button.disabled = false;
+  }
+}
+const choices = get("character-choice");
+const characterIds = Object.keys(CHARACTERS) as CharacterId[];
+for (const id of characterIds) {
+  const label = document.createElement("label");
+  const input = document.createElement("input");
+  input.type = "radio";
+  input.name = "character";
+  input.value = id;
+  input.checked = id === setup.character;
+  input.addEventListener("change", () => {
+    if (input.checked) setup = { ...setup, character: id };
+  }, { signal: life.signal });
+  label.append(input, CHARACTERS[id]);
+  choices.append(label);
+}
+
+const playerStatus = document.createElement("small");
+for (const team of ["blue", "red"] as const) {
+  const list = get(`lobby-${team}`);
+  characterIds.forEach((_, slot) => {
+    const row = document.createElement("li");
+    const playerSlot = `${team}-${slot}` === PLAYER_ID;
+    row.append(playerSlot ? document.createElement("strong") : document.createElement("span"));
+    row.firstElementChild!.textContent = playerSlot ? "あなた" : `AI ${slot + 1}`;
+    const status = playerSlot ? playerStatus : document.createElement("small");
+    if (!playerSlot) status.textContent = "準備完了";
+    row.append(status);
+    list.append(row);
+  });
+}
+function updateReady() {
+  lobbyReady.setAttribute("aria-pressed", String(ready));
+  lobbyReady.textContent = ready ? "準備を取り消す" : "準備完了";
+  playerStatus.textContent = `${CHARACTERS[setup.character]} · ${ready ? "準備完了" : "準備中"}`;
+  lobbyStart.disabled = !ready || !rendererReady || transition;
+}
+function openLobby() {
+  ready = false;
+  display(get("lobby-summary"), `${setup.arena.name} · ${RULES[setup.rule].label}`);
+  updateReady();
+  showScreen(screens, "lobby");
+}
+for (const [id, screen] of [
+  ["solo", "setup"], ["setup-back", "title"], ["setup-next", "character"],
+  ["character-back", "setup"], ["lobby-back", "character"],
+] as const) get(id).addEventListener("click", () => showScreen(screens, screen), { signal: life.signal });
+get("character-next").addEventListener("click", openLobby, { signal: life.signal });
+lobbyReady.addEventListener("click", () => {
+  ready = !ready;
+  updateReady();
+}, { signal: life.signal });
+lobbyStart.addEventListener("click", () => {
+  if (ready && rendererReady) void startMatch(new MatchSeries(setup));
+}, { signal: life.signal });
+skipPreparation.addEventListener("click", () => {
+  preparation?.skipPreparation();
+}, { signal: life.signal });
+start.addEventListener("click", () => {
+  if (!series) return;
+  void startMatch(series.winner === null ? series : new MatchSeries(series.setup));
+}, { signal: life.signal });
+for (const [id, screen] of [["result-title", "title"], ["result-setup", "setup"]] as const) {
+  get(id).addEventListener("click", () => {
+    series = undefined;
+    showScreen(screens, screen);
+  }, { signal: life.signal });
+}
+
+get("leave-battle").addEventListener("click", () => {
+  if (transition) return;
+  game.pause();
+  leaveDialog.returnValue = "";
+  leaveDialog.showModal();
+}, { signal: life.signal });
+leaveDialog.addEventListener("close", async () => {
+  if (leaveDialog.returnValue !== "leave") {
+    resumeBattle();
+    return;
+  }
+  transition = true;
+  try {
+    await releaseBattle();
+    series = undefined;
+    showScreen(screens, "title");
+  } catch (error) {
+    report(error);
+  } finally {
+    game.resume();
+    transition = false;
   }
 }, { signal: life.signal });
-get("open-settings").addEventListener("click", () => {
+function resumeBattle() {
+  game.resume();
+  if (!app.hidden) (preparationView.hidden ? game.element : preparationTitle).focus({ preventScroll: true });
+}
+function openSettings() {
   if (transition || dialog.open) return;
   game.pause();
   dialog.showModal();
-}, { signal: life.signal });
-dialog.addEventListener("close", () => {
-  game.resume();
-  if (active) game.element.focus({ preventScroll: true });
-  if (resultShown) touchView.layer.hidden = true;
-}, { signal: life.signal });
+}
+for (const id of ["open-settings", "title-settings"]) get(id).addEventListener("click", openSettings, { signal: life.signal });
+dialog.addEventListener("close", resumeBattle, { signal: life.signal });
 function dispose() {
   life.abort();
   updateCameraLayout = undefined;
@@ -309,4 +495,11 @@ window.addEventListener("pagehide", (event) => {
 }, { signal: life.signal });
 import.meta.hot?.dispose(dispose);
 
-game.run("briefing").then(() => { start.disabled = false; }).catch(report);
+game.run("briefing").then(() => {
+  rendererReady = true;
+  updateReady();
+}).catch((error: unknown) => {
+  console.error(error);
+  lobbyError.textContent = "戦場を読み込めませんでした。ページを再読み込みしてください。";
+  lobbyError.hidden = false;
+});

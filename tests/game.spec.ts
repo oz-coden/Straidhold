@@ -1,14 +1,34 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function startMatch(page: Page, seconds = 22) {
+async function freezeClock(page: Page) {
+  const time = new Date("2026-01-01T00:00:00Z");
+  await page.clock.install({ time });
+  await page.clock.pauseAt(new Date(time.getTime() + 60_000));
+}
+
+async function enterLobby(page: Page) {
+  await page.locator("#setup-next").click();
+  await page.locator("#character-next").click();
+  await page.locator("#lobby-ready").click();
+  await expect(page.locator("#lobby-start")).toBeEnabled();
+}
+
+async function startCombat(page: Page, button = "#lobby-start") {
+  await page.locator(button).click({ force: true });
+  await expect(page.locator("#preparation")).toBeVisible();
+  await page.locator("#skip-preparation").click({ force: true });
+  await page.clock.runFor(3050);
+  await expect(page.locator("#app")).toHaveAttribute("data-phase", "combat");
+}
+
+async function startMatch(page: Page, seconds = 22, map = "training") {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.clock.install();
-  await page.goto(`/?map=training&round=${seconds}`);
-  await expect(page.locator("#start")).toBeEnabled();
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
-  await page.locator("#start").click({ force: true });
-  await expect(page.locator("#overlay")).toBeHidden();
+  await freezeClock(page);
+  await page.goto(`/?map=${map}&round=${seconds}`);
+  await page.locator("#solo").click();
+  await enterLobby(page);
+  await startCombat(page);
   return errors;
 }
 
@@ -36,10 +56,9 @@ test("desktop plays the production build through attack, capture, result and rem
   }
   await expect(page.locator("#clock")).toHaveText("00:00");
   await expect(page.locator("#headline")).toHaveText(/チームの勝利|引き分け/);
-  await expect(page.locator("#start")).toHaveText("再試合");
+  await expect(page.locator("#start")).toHaveText("再戦");
 
-  await page.locator("#start").click({ force: true });
-  await expect(page.locator("#overlay")).toBeHidden();
+  await startCombat(page, "#start");
   await page.clock.runFor(100);
   await expect(page.locator("#clock")).toHaveText("00:22");
   await expect(page.locator("#blue-score")).toHaveText("0");
@@ -108,7 +127,7 @@ test.describe("small touch screen", () => {
     await expect(page.locator("#aim-stick")).toHaveCSS("width", "64px");
     await expect(page.locator("#aim-stick")).toHaveCSS("opacity", "0.45");
     await page.reload();
-    await page.locator("#open-settings").click({ force: true });
+    await page.locator("#title-settings").click({ force: true });
     await expect(dialog.locator('[name="mode"]')).toHaveValue("touch");
     await expect(dialog.locator('[name="stick"]')).toHaveValue("follow");
     await expect(dialog.locator('[name="aimStick"]')).toHaveValue("fixed");
@@ -174,8 +193,8 @@ test("saved settings recover safely and leaving an active match releases its res
     localStorage.setItem("straidhold.controls", JSON.stringify(stored));
   });
   await page.goto("/");
-  await expect(page.locator("#clock")).toHaveText("05:00");
-  await page.locator("#open-settings").click();
+  await expect(page.locator("#game canvas")).toBeHidden();
+  await page.locator("#title-settings").click();
   const dialog = page.locator("#settings");
   await expect(dialog.locator('[name="mode"]')).toHaveValue("auto");
   await expect(dialog.locator('[name="stick"]')).toHaveValue("floating");
@@ -185,14 +204,16 @@ test("saved settings recover safely and leaving an active match releases its res
   await expect(dialog.locator('[name="deadZone"]')).toHaveValue("15");
 
   await page.goto("/?map=training&stored=legacy");
-  await page.locator("#open-settings").click();
+  await page.locator("#title-settings").click();
   await expect(dialog.locator('[name="mode"]')).toHaveValue("auto");
   await expect(dialog.locator('[name="stick"]')).toHaveValue("floating");
   await expect(dialog.locator('[name="aimStick"]')).toHaveValue("floating");
   await expect(dialog.locator('[name="size"]')).toHaveValue("44");
   await dialog.getByRole("button", { name: "閉じる" }).click();
-  await page.locator("#start").click();
-  await expect(page.locator("#overlay")).toBeHidden();
+  await page.locator("#solo").click();
+  await enterLobby(page);
+  await page.locator("#lobby-start").click();
+  await expect(page.locator("#preparation")).toBeVisible();
   await expect(page.locator("#game canvas")).toHaveCount(1);
   await expect(page.locator("#map-labels .map-label")).toHaveCount(5);
   const counts = await page.evaluate(() => {
@@ -319,10 +340,9 @@ test("all five tactical maps launch with their own layout and allow changing map
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 760, height: 430 });
-  await page.clock.install();
+  await freezeClock(page);
   await page.goto("/?round=5");
-  await expect(page.locator("#start")).toBeEnabled();
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
+  await page.locator("#solo").click();
   const picker = page.getByRole("combobox", { name: "戦場", exact: true });
   const panel = page.locator(".minimap");
   await expect(picker).toHaveValue(layouts[0][0]);
@@ -330,8 +350,8 @@ test("all five tactical maps launch with their own layout and allow changing map
   for (const [id, count, view] of layouts) {
     await picker.selectOption(id);
     await expect(page.locator("#map-preview svg")).toHaveAttribute("viewBox", view);
-    await page.locator("#start").click({ force: true });
-    await expect(page.locator("#overlay")).toBeHidden();
+    await enterLobby(page);
+    await startCombat(page);
     await expect(panel).toHaveCount(1);
     await expect(panel).toHaveAttribute("data-map", id);
     await expect(panel.locator("svg").first()).toHaveAttribute("viewBox", view);
@@ -340,25 +360,19 @@ test("all five tactical maps launch with their own layout and allow changing map
     await page.clock.runFor(300);
     await page.keyboard.up("d");
     await expect(panel.locator(".minimap-player")).not.toHaveAttribute("transform", /^translate\(192\.0 /);
-    for (let i = 0; i < 4 && await page.locator("#overlay").isHidden(); i++) {
+    for (let i = 0; i < 4 && await page.locator("#result-screen").isHidden(); i++) {
       await page.clock.runFor(1700);
     }
     await expect(page.locator("#clock")).toHaveText("00:00");
+    await page.locator("#result-setup").click();
     await expect(picker).toBeVisible();
   }
   expect(errors).toEqual([]);
 });
 
 test("a player reaches the front, connects supply, and attacks on the compact map", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 800, height: 450 });
-  await page.clock.install();
-  await page.goto("/?map=central-line&round=40");
-  await expect(page.locator("#start")).toBeEnabled();
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
-  await page.locator("#start").click({ force: true });
-  await expect(page.locator("#overlay")).toBeHidden();
+  const errors = await startMatch(page, 40, "central-line");
   await expect(page.locator(".minimap-unit[data-team=red][transform]")).toHaveCount(0);
   const forwardSite = page.locator("#sites .site").filter({ has: page.getByText("D", { exact: true }) });
   await page.keyboard.down("d");
@@ -391,14 +405,13 @@ test.describe("tactical map on a small touch screen", () => {
   test.use({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
 
   test("keeps the map picker and seven objectives usable during multi-touch movement", async ({ page }) => {
-    await page.clock.install();
+    await freezeClock(page);
     await page.goto("/?map=cross-supply&round=20");
+    await page.locator("#solo").click();
     await expect(page.getByRole("combobox", { name: "戦場", exact: true })).toBeInViewport();
-    await expect(page.locator("#start")).toBeEnabled();
-    await expect(page.locator("#start")).toBeInViewport();
-    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
-    await page.locator("#start").click({ force: true });
-    await expect(page.locator("#overlay")).toBeHidden();
+    await enterLobby(page);
+    await expect(page.locator("#lobby-start")).toBeInViewport();
+    await startCombat(page);
     const markers = page.locator("#sites .site");
     await expect(markers).toHaveCount(7);
     await expect(markers.last()).toBeInViewport();
@@ -426,12 +439,7 @@ test.describe("held touch input during capture", () => {
   test.use({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
 
   test("keeps the first contact moving through a second-finger deployment and HUD updates", async ({ page }) => {
-    await page.clock.install();
-    await page.goto("/?map=central-line&round=40");
-    await expect(page.locator("#start")).toBeEnabled();
-    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 250));
-    await page.locator("#start").click({ force: true });
-    await expect(page.locator("#overlay")).toBeHidden();
+    await startMatch(page, 40, "central-line");
 
     const cdp = await page.context().newCDPSession(page);
     const touch = (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: { id: number; x: number; y: number }[]) =>
@@ -635,10 +643,102 @@ test.describe("attack stick", () => {
     await page.clock.runFor(90);
     await expect(aim).toHaveAttribute("data-active", "true");
     await page.clock.runFor(5000);
-    await expect(page.locator("#start")).toHaveText("再試合");
-    await page.locator("#start").click({ force: true });
+    await expect(page.locator("#start")).toHaveText("再戦");
+    await startCombat(page, "#start");
     await page.clock.runFor(80);
     await expect(aim).toHaveAttribute("data-active", "false");
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   });
+});
+
+test("title, setup, character and ready lobby retain selections and allow returning", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto("/");
+  await expect(page.locator("#title-heading")).toBeVisible();
+  await expect(page.locator(".title-menu button:disabled")).toHaveCount(3);
+  await page.locator("#title-settings").click();
+  await expect(page.locator("#settings")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.locator("#solo").click();
+  await page.locator("#map-select").selectOption("cross-supply");
+  await page.locator("#rule-select").selectOption("series");
+  await page.locator("#setup-next").click();
+  await page.getByRole("radio", { name: "タンク" }).check();
+  await page.locator("#character-next").click();
+  await expect(page.locator("#lobby-blue li")).toHaveCount(5);
+  await expect(page.locator("#lobby-red li")).toHaveCount(5);
+  await expect(page.locator("#lobby-summary")).toHaveText(/交差補給路.*3ラウンド先取/);
+  await expect(page.locator("#lobby-blue")).toContainText("タンク · 準備中");
+  await expect(page.locator("#lobby-start")).toBeDisabled();
+  await page.locator("#lobby-ready").click();
+  await expect(page.locator("#lobby-start")).toBeEnabled();
+  await page.locator("#lobby-ready").click();
+  await expect(page.locator("#lobby-start")).toBeDisabled();
+  await page.locator("#lobby-back").click();
+  await expect(page.getByRole("radio", { name: "タンク" })).toBeChecked();
+  await page.locator("#character-back").click();
+  await expect(page.locator("#map-select")).toHaveValue("cross-supply");
+  await expect(page.locator("#rule-select")).toHaveValue("series");
+  await page.locator("#setup-back").click();
+  await expect(page.locator("#title-heading")).toBeFocused();
+});
+
+test("preparation freezes both teams and leaving releases the active round", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await freezeClock(page);
+  await page.goto("/?map=training&round=5");
+  await page.locator("#solo").click();
+  await enterLobby(page);
+  await page.locator("#lobby-start").click({ force: true });
+  await expect(page.locator("#preparation-time")).toHaveText("10");
+  await page.clock.runFor(50);
+  const markers = page.locator(".minimap-unit");
+  const positions = () => markers.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("transform")));
+  const before = await positions();
+  await page.keyboard.down("w");
+  await page.keyboard.press("e");
+  await page.clock.runFor(1800);
+  await page.keyboard.up("w");
+  expect(await positions()).toEqual(before);
+  await expect(page.locator("#sites progress:visible")).toHaveCount(0);
+  await expect(page.locator("#clock")).toHaveText("00:05");
+  await expect(page.locator("#blue-score")).toHaveText("0");
+  await page.locator("#skip-preparation").click({ force: true });
+  await page.clock.runFor(25);
+  await expect(page.locator("#preparation-heading")).toHaveText("戦闘開始まで");
+  await expect(page.locator("#preparation-time")).toHaveText("3");
+  await page.clock.runFor(3050);
+  await expect(page.locator("#app")).toHaveAttribute("data-phase", "combat");
+  await page.keyboard.down("w");
+  await page.clock.runFor(400);
+  await page.keyboard.up("w");
+  expect(await positions()).not.toEqual(before);
+  await page.locator("#leave-battle").click({ force: true });
+  await page.locator("#leave-dialog").getByRole("button", { name: "対戦に戻る" }).click({ force: true });
+  await expect(page.locator("#app")).toBeVisible();
+  await page.locator("#leave-battle").click({ force: true });
+  await page.locator("#leave-dialog").getByRole("button", { name: "タイトルへ" }).click({ force: true });
+  await expect(page.locator("#title-heading")).toBeVisible();
+  await expect(page.locator(".fog, .minimap, .map-label, .roster-unit")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("series retains round results and resets the battlefield for the next round", async ({ page }) => {
+  await freezeClock(page);
+  await page.goto("/?map=training&round=5");
+  await page.locator("#solo").click();
+  await page.locator("#rule-select").selectOption("series");
+  await enterLobby(page);
+  await startCombat(page);
+  await page.clock.runFor(5200);
+  await expect(page.locator("#result-round")).toHaveText("第1ラウンド終了");
+  await expect(page.locator("#round-results li")).toHaveCount(1);
+  await expect(page.locator("#start")).toHaveText("次のラウンド");
+  await expect(page.locator(".minimap")).toHaveCount(0);
+  await page.locator("#start").click({ force: true });
+  await expect(page.locator("#round-status")).toHaveText(/第2ラウンド/);
+  await expect(page.locator("#preparation-time")).toHaveText("60");
+  await expect(page.locator("#blue-score")).toHaveText("0");
+  await expect(page.locator('#sites .site[data-owner="neutral"]')).toHaveCount(3);
 });

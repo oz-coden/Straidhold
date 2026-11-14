@@ -59,7 +59,7 @@ const start = get<HTMLButtonElement>("start");
 const dialog = get<HTMLDialogElement>("settings");
 const leaveDialog = get<HTMLDialogElement>("leave-dialog");
 const life = new AbortController();
-const results = resultsPanel(get("participant-results"), get<HTMLSelectElement>("result-round-select"), life.signal);
+const results = resultsPanel(get("participant-results"), get("match-awards"), get<HTMLSelectElement>("result-round-select"), life.signal);
 const touchView = {
   layer: get("touch-controls"),
   move: { base: get("stick"), knob: get("knob") },

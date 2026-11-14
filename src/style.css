@@ -526,3 +526,18 @@ dialog button { justify-self: end; }
 @media (orientation: portrait) and (pointer: coarse) {
   #streak-hud { top: 22px; }
 }
+
+
+#match-awards { margin-block: 1.2rem; }
+#match-awards h2 { margin: 0 0 .55rem; font-size: 1.1rem; }
+#match-awards ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; list-style: none; padding: 0; margin: 0; }
+#match-awards li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: baseline; min-width: 0; padding: 6px 9px; background: #132537; border: 1px solid var(--edge); border-radius: 4px; font-size: .83rem; }
+#match-awards li span { grid-column: 1 / -1; overflow-wrap: anywhere; }
+#match-awards li small { grid-column: 2; grid-row: 1; color: var(--gold); white-space: nowrap; }
+#match-awards li[data-award="mvp"] { grid-column: 1 / -1; padding: 10px 12px; border-color: #b99350; background: #302b25; font-size: 1.05rem; }
+#match-awards li[data-award="mvp"] strong { color: var(--gold); }
+#match-awards li[data-team="blue"] strong { color: var(--blue); }
+#match-awards li[data-team="red"] strong { color: var(--red); }
+@media (max-width: 480px) {
+  #match-awards li:not([data-award="team-mvp"]) { grid-column: 1 / -1; }
+}

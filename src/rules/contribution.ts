@@ -25,6 +25,36 @@ export function contributionUnits(stats: ParticipantStats) {
     + stats.installationUnits + stats.guardingUnits;
 }
 
+// Every possible number of guards on a five-person team divides 60.
+const SHARE_PER_TICK = 60;
+
+export class CaptureContribution {
+  private readonly shares = new Map<string, number>();
+
+  readonly installer: string;
+
+  constructor(installer: string) { this.installer = installer; }
+
+  advance(guards: readonly Participant[]) {
+    const share = SHARE_PER_TICK / guards.length;
+    for (const { id } of guards) this.shares.set(id, (this.shares.get(id) ?? 0) + share);
+  }
+
+  distribute(): readonly { id: string; units: number }[] {
+    const total = Array.from(this.shares.values()).reduce((sum, share) => sum + share, 0);
+    const pool = POINTS.guarding * POINT_UNITS;
+    const awards = Array.from(this.shares, ([id, share]) => ({
+      id,
+      units: Math.floor(pool * share / total),
+      remainder: pool * share % total,
+    }));
+    awards.sort((a, b) => b.remainder - a.remainder || (a.id < b.id ? -1 : a.id === b.id ? 0 : 1));
+    const remaining = pool - awards.reduce((sum, { units }) => sum + units, 0);
+    for (let i = 0; i < remaining; i++) awards[i].units++;
+    return awards;
+  }
+}
+
 export class RoundStats {
   private readonly participants = new Map<string, Participant & Totals>();
   private readonly attackers = new Map<string, Set<string>>();
@@ -37,6 +67,17 @@ export class RoundStats {
 
   snapshot(): readonly ParticipantStats[] {
     return Array.from(this.participants.values(), (row) => ({ ...row }));
+  }
+
+  recordCapture(contribution: CaptureContribution) {
+    // Even a defeated installer retains their roster slot until the round ends.
+    const installer = this.participants.get(contribution.installer);
+    if (!installer) throw new Error("Capture installer must belong to the round roster");
+    installer.captures++;
+    installer.installationUnits += POINTS.installation * POINT_UNITS;
+    const awards = contribution.distribute();
+    for (const { id, units } of awards) this.participants.get(id)!.guardingUnits += units;
+    return awards.map(({ id }) => id);
   }
 
   recordDamage(attacker: Participant, target: Participant) {

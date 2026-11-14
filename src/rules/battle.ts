@@ -7,7 +7,7 @@ import { distance, placeArena, RADIUS, spawn, TEAMS, toward, trainingArena, type
 import { IDLE, validate, ZERO, type Command } from "./command.ts";
 import { seesUnit } from "./vision.ts";
 import { CombatEvents } from "./combat-events.ts";
-import { RoundStats } from "./contribution.ts";
+import { CaptureContribution, RoundStats } from "./contribution.ts";
 import { Supply, type SupplyMovement } from "./supply.ts";
 
 export const HZ = 60;
@@ -131,6 +131,7 @@ export class Battle {
 
   private readonly events: CombatEvents;
   private readonly stats: RoundStats;
+  private readonly captures = new Map<Site, CaptureContribution>();
   private readonly source: CommandSource;
   private started: boolean;
 
@@ -298,19 +299,32 @@ export class Battle {
       const first = installers[0];
       if (first && installers.every((fighter) => fighter.team === first.team)) {
         site.device = { team: first.team, progress: 0, abandoned: 0, contested: false };
+        this.captures.set(site, new CaptureContribution(first.id));
       }
       return;
     }
     const device = site.device;
-    const guarding = inside.some((fighter) => fighter.team === device.team);
+    const guards = inside.filter((fighter) => fighter.team === device.team);
     device.contested = inside.some((fighter) => fighter.team !== device.team);
-    device.abandoned = guarding ? 0 : device.abandoned + 1;
+    device.abandoned = guards.length ? 0 : device.abandoned + 1;
     if (device.abandoned >= ABANDON_TICKS) {
+      this.captures.delete(site);
       site.device = null;
-    } else if (guarding && !device.contested && ++device.progress >= ACTIVATE_TICKS) {
-      site.owner = device.team;
-      this.scores[device.team] += 4;
-      site.device = null;
+    } else if (guards.length && !device.contested) {
+      const contribution = this.captures.get(site)!;
+      contribution.advance(guards);
+      if (++device.progress >= ACTIVATE_TICKS) {
+        const previous = site.owner;
+        site.owner = device.team;
+        this.scores[device.team] += 4;
+        const participants = this.stats.recordCapture(contribution);
+        this.events.record({
+          kind: "capture", site: site.id, team: device.team, previous,
+          installer: contribution.installer, guards: participants,
+        });
+        this.captures.delete(site);
+        site.device = null;
+      }
     }
   }
 }

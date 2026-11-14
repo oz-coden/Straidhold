@@ -15,7 +15,9 @@ export class CombatEvents {
   private sequence = 0;
   private tick = 0;
 
-  constructor(private readonly round: number) {}
+  private readonly round: number;
+
+  constructor(round: number) { this.round = round; }
 
   get events(): readonly CombatEvent[] { return this.current; }
 

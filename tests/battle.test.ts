@@ -95,6 +95,7 @@ test("aim and attack are independent, shield absorbs damage before HP, and only 
   assert.equal(target.hp, 100 - (recruit.damage - 10));
   orders.set(player.id, IDLE);
   step(recruit.shieldDelay);
+  assert.equal(player.target, undefined);
   assert.equal(target.shield, 0);
   step(HZ);
   assert.ok(Math.abs(target.shield - 20) < 1e-8);

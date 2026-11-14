@@ -311,6 +311,7 @@ dialog button { justify-self: end; }
 }
 @media (max-height: 420px), (max-width: 480px) {
   .minimap { width: clamp(92px, 19vw, 148px); top: 5px; right: 5px; }
+  #app[data-input-mode="touch"] .minimap:not([data-map="training"]) { width: clamp(76px, 15vw, 112px); }
   .site-icon { line-height: 13px; min-width: 15px; }
 }
 

@@ -58,7 +58,7 @@ test.describe("small touch screen", () => {
     const errors = await startMatch(page, 20);
     const app = page.locator("#app");
     await expect(app).toHaveAttribute("data-input-mode", "touch");
-    const fire = page.locator("#touch-fire");
+    const fire = page.locator("#aim-stick");
     const stick = (await page.locator("#stick").boundingBox())!;
     const button = (await fire.boundingBox())!;
     const minimap = (await page.locator(".minimap").boundingBox())!;
@@ -98,16 +98,20 @@ test.describe("small touch screen", () => {
     await expect(page.locator("#clock")).toHaveText(time!);
     await dialog.locator('[name="mode"]').selectOption("touch");
     await dialog.locator('[name="stick"]').selectOption("follow");
+    await dialog.locator('[name="aimStick"]').selectOption("fixed");
     for (const [name, value] of [["size", "32"], ["opacity", "45"], ["deadZone", "24"]]) {
       await dialog.locator(`[name="${name}"]`).fill(value);
     }
     await dialog.getByRole("button", { name: "閉じる" }).click({ force: true });
     await expect(page.locator("#stick")).toHaveCSS("width", "64px");
     await expect(page.locator("#stick")).toHaveCSS("opacity", "0.45");
+    await expect(page.locator("#aim-stick")).toHaveCSS("width", "64px");
+    await expect(page.locator("#aim-stick")).toHaveCSS("opacity", "0.45");
     await page.reload();
     await page.locator("#open-settings").click({ force: true });
     await expect(dialog.locator('[name="mode"]')).toHaveValue("touch");
     await expect(dialog.locator('[name="stick"]')).toHaveValue("follow");
+    await expect(dialog.locator('[name="aimStick"]')).toHaveValue("fixed");
     await expect(dialog.locator('[name="size"]')).toHaveValue("32");
     await expect(dialog.locator('[name="opacity"]')).toHaveValue("45");
     await expect(dialog.locator('[name="deadZone"]')).toHaveValue("24");
@@ -166,7 +170,7 @@ test("saved settings recover safely and leaving an active match releases its res
   await page.addInitScript(() => {
     const stored = location.search
       ? { version: 0, mode: "gamepad", stick: "fixed" }
-      : { version: 1, mode: "alien", stick: 9, size: 1000, opacity: -1, deadZone: "99" };
+      : { version: 1, mode: "alien", stick: 9, aimStick: "unsupported", size: 1000, opacity: -1, deadZone: "99" };
     localStorage.setItem("straidhold.controls", JSON.stringify(stored));
   });
   await page.goto("/");
@@ -175,6 +179,7 @@ test("saved settings recover safely and leaving an active match releases its res
   const dialog = page.locator("#settings");
   await expect(dialog.locator('[name="mode"]')).toHaveValue("auto");
   await expect(dialog.locator('[name="stick"]')).toHaveValue("floating");
+  await expect(dialog.locator('[name="aimStick"]')).toHaveValue("floating");
   await expect(dialog.locator('[name="size"]')).toHaveValue("68");
   await expect(dialog.locator('[name="opacity"]')).toHaveValue("25");
   await expect(dialog.locator('[name="deadZone"]')).toHaveValue("15");
@@ -183,6 +188,7 @@ test("saved settings recover safely and leaving an active match releases its res
   await page.locator("#open-settings").click();
   await expect(dialog.locator('[name="mode"]')).toHaveValue("auto");
   await expect(dialog.locator('[name="stick"]')).toHaveValue("floating");
+  await expect(dialog.locator('[name="aimStick"]')).toHaveValue("floating");
   await expect(dialog.locator('[name="size"]')).toHaveValue("44");
   await dialog.getByRole("button", { name: "閉じる" }).click();
   await page.locator("#start").click();
@@ -399,7 +405,7 @@ test.describe("tactical map on a small touch screen", () => {
     await page.clock.runFor(100);
     const map = (await page.locator(".minimap").boundingBox())!;
     const stick = (await page.locator("#stick").boundingBox())!;
-    const fire = (await page.locator("#touch-fire").boundingBox())!;
+    const fire = (await page.locator("#aim-stick").boundingBox())!;
     expect(fire.y).toBeGreaterThan(map.y + map.height);
     const cdp = await page.context().newCDPSession(page);
     const stickPoint = { id: 1, x: stick.x + stick.width / 2, y: stick.y + stick.height / 2 };
@@ -410,7 +416,7 @@ test.describe("tactical map on a small touch screen", () => {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...stickPoint, x: stickPoint.x + 42 }, { ...firePoint, y: firePoint.y - 21 }] });
     await page.clock.runFor(350);
     await expect(player).not.toHaveAttribute("transform", before!);
-    await expect(page.locator("#touch-fire")).toHaveAttribute("data-active", "true");
+    await expect(page.locator("#aim-stick")).toHaveAttribute("data-active", "true");
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   });
 });
@@ -438,13 +444,16 @@ test.describe("held touch input during capture", () => {
     const playerX = async () => Number((await marker.getAttribute("transform"))!.match(/^translate\(([0-9.]+)/)?.[1]);
     const move = await control("#stick", 1);
     const deploy = await control("#touch-deploy", 2);
+    const aim = await control("#aim-stick", 3);
+    const aimed = { ...aim, y: aim.y + 38 };
+    const aimStick = page.locator("#aim-stick");
     const battlefield = page.locator("#battlefield");
     const initialBounds = await battlefield.boundingBox();
     const right = { ...move, x: move.x + 56 };
     const forward = page.locator("#sites .site").filter({ has: page.getByText("D", { exact: true }) });
     const progress = forward.locator("progress");
-    await touch("touchStart", [move]);
-    await touch("touchMove", [right]);
+    await touch("touchStart", [move, aim]);
+    await touch("touchMove", [right, aimed]);
     await page.clock.runFor(2650);
     for (let step = 0; step < 28 && await page.locator("#deploy-state").getAttribute("data-ready") !== "true"; step++) {
       await page.clock.runFor(17);
@@ -452,7 +461,7 @@ test.describe("held touch input during capture", () => {
     await expect(page.locator("#deploy-state")).toHaveAttribute("data-ready", "true");
     await expect(progress).toBeHidden();
 
-    await touch("touchStart", [right, deploy]);
+    await touch("touchStart", [right, deploy, aimed]);
     await page.clock.runFor(80);
     await expect(progress).toBeVisible();
     await expect(forward).toContainText("青 起動");
@@ -460,6 +469,7 @@ test.describe("held touch input during capture", () => {
     await page.clock.runFor(900);
     expect(await playerX()).toBeGreaterThan(atInstall + 100);
     expect(await battlefield.boundingBox()).toEqual(initialBounds);
+    await expect(aimStick).toHaveAttribute("data-active", "true");
 
     for (let step = 0; step < 13 && await forward.getAttribute("data-supply") !== "linked"; step++) {
       await page.clock.runFor(430);
@@ -467,6 +477,7 @@ test.describe("held touch input during capture", () => {
     await expect(forward).toHaveAttribute("data-supply", "linked");
     expect(Number(await page.locator("#blue-score").textContent())).toBeGreaterThan(0);
     expect(await battlefield.boundingBox()).toEqual(initialBounds);
+    await expect(aimStick).toHaveAttribute("data-active", "true");
     await expect(page.locator("#app")).toHaveAttribute("data-input-mode", "touch");
     const beforeRelease = await playerX();
     await page.clock.runFor(200);
@@ -477,5 +488,150 @@ test.describe("held touch input during capture", () => {
     const stopped = await playerX();
     await page.clock.runFor(260);
     expect(await playerX()).toBe(stopped);
+  });
+});
+
+test.describe("manual attack stick", () => {
+  test.use({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
+
+  test("neutral touch stays idle and both sticks release independently", async ({ page }) => {
+    await startMatch(page, 20);
+    const cdp = await page.context().newCDPSession(page);
+    type Contact = { id: number; x: number; y: number };
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd" | "touchCancel", touchPoints: Contact[]) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+    const center = async (selector: string, id: number) => {
+      const box = (await page.locator(selector).boundingBox())!;
+      return { id, x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+    const marker = page.locator(".minimap-player");
+    const position = async () => {
+      const [, x, y] = (await marker.getAttribute("transform"))!.match(/^translate\(([\d.]+) ([\d.]+)/)!;
+      return { x: Number(x), y: Number(y) };
+    };
+    const aim = page.locator("#aim-stick");
+    const move = page.locator("#stick");
+    const attack = page.locator("#attack-state");
+    const left = await center("#stick", 1);
+    const right = await center("#aim-stick", 2);
+    const forward = { ...left, y: left.y - 51 };
+    const north = { ...right, y: right.y - 44 };
+    const south = { ...right, y: right.y + 35 };
+    await touch("touchStart", [left]);
+    await touch("touchMove", [forward]);
+    await page.clock.runFor(945);
+    await touch("touchEnd", []);
+    await page.clock.runFor(45);
+    const stopped = await position();
+    expect(stopped.y).toBeLessThan(330);
+    await expect(attack).toHaveText("攻撃待機");
+
+    // Keep a valid enemy in range while testing a tap and a held dead-zone input.
+    await expect(page.locator(".minimap-unit[data-team=red][transform]").first()).toBeAttached();
+    await touch("touchStart", [right]);
+    await touch("touchEnd", []);
+    await page.clock.runFor(50);
+    await expect(attack).toHaveText("攻撃待機");
+    await touch("touchStart", [right]);
+    await touch("touchMove", [{ ...right, x: right.x + 3 }]);
+    await page.clock.runFor(400);
+    await expect(aim).toHaveAttribute("data-active", "true");
+    await expect(attack).toHaveText("攻撃待機");
+    await touch("touchMove", [north]);
+    await page.clock.runFor(75);
+    await expect(attack).toHaveText("攻撃命中");
+    expect(await position()).toEqual(stopped);
+
+    // Keep the aim contact while changing the left contact and then releasing it.
+    await touch("touchStart", [left, north]);
+    const rightward = { ...left, x: left.x + 39 };
+    const leftward = { ...left, x: left.x - 39 };
+    await touch("touchMove", [north, rightward]);
+    await page.clock.runFor(100);
+    expect((await position()).x).toBeGreaterThan(stopped.x);
+    const beforeLeft = await position();
+    await touch("touchMove", [north, leftward]);
+    for (let i = 0; i < 4 && (await position()).x >= beforeLeft.x; i++) await page.clock.runFor(50);
+    expect((await position()).x).toBeLessThan(beforeLeft.x);
+    await expect(aim).toHaveAttribute("data-active", "true");
+    await touch("touchEnd", [leftward]);
+    await page.clock.runFor(50);
+    await expect(move).toHaveAttribute("data-active", "false");
+    await expect(aim).toHaveAttribute("data-active", "true");
+    const afterLeftRelease = await position();
+    await touch("touchMove", [south]);
+    await page.clock.runFor(280);
+    await expect(attack).toHaveText("射程内に有効な対象なし");
+    expect(await position()).toEqual(afterLeftRelease);
+    await touch("touchMove", [right]);
+    await page.clock.runFor(500);
+    await expect(aim).toHaveAttribute("data-active", "true");
+    await expect(attack).toHaveText("攻撃待機");
+    await touch("touchMove", [south]);
+
+    await touch("touchStart", [south, left]);
+    await touch("touchMove", [south, forward]);
+    await touch("touchEnd", [south]);
+    const beforeRightRelease = await position();
+    await page.clock.runFor(100);
+    expect((await position()).y).toBeLessThan(beforeRightRelease.y);
+    await expect(move).toHaveAttribute("data-active", "true");
+    await expect(aim).toHaveAttribute("data-active", "false");
+    await expect(attack).toHaveText(/攻撃待機|攻撃クールダウン/);
+    await touch("touchCancel", []);
+    await page.clock.runFor(50);
+    await expect(move).toHaveAttribute("data-active", "false");
+    const afterCancel = await position();
+    await page.clock.runFor(85);
+    expect(await position()).toEqual(afterCancel);
+  });
+
+  test("fixed, floating and follow modes use the SDK center and knob", async ({ page }) => {
+    await startMatch(page, 5);
+    const cdp = await page.context().newCDPSession(page);
+    const aim = page.locator("#aim-stick");
+    const knob = page.locator("#aim-knob");
+    const field = page.locator("#battlefield");
+    const dialog = page.locator("#settings");
+    for (const mode of ["fixed", "floating", "follow"]) {
+      await page.locator("#open-settings").click({ force: true });
+      await dialog.locator('[name="aimStick"]').selectOption(mode);
+      await dialog.getByRole("button", { name: "閉じる" }).click({ force: true });
+      await page.clock.runFor(50);
+      const box = (await aim.boundingBox())!;
+      const cx = box.x + box.width / 2;
+      const start = { id: 7, x: cx - 20, y: box.y + box.height / 2 };
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [start] });
+      await page.clock.runFor(40);
+      expect((await aim.boundingBox())!.x + box.width / 2).toBeCloseTo(mode === "fixed" ? cx : start.x, 0);
+      const edge = (await field.boundingBox())!;
+      const end = { ...start, x: Math.min(start.x + 72, edge.x + edge.width - 10) };
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [end] });
+      await page.clock.runFor(40);
+      const expected = mode === "fixed" ? cx : mode === "floating" ? start.x : end.x - box.width / 2;
+      expect((await aim.boundingBox())!.x + box.width / 2).toBeCloseTo(expected, 0);
+      expect(await knob.evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).m41)).toBeGreaterThan(25);
+      if (mode === "follow") {
+        await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+      } else {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+      }
+      await page.clock.runFor(40);
+      await expect(aim).toHaveAttribute("data-active", "false");
+      await expect(knob).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    const box = (await aim.boundingBox())!;
+    const contact = { id: 8, x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [contact] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...contact, y: contact.y - 40 }] });
+    await page.clock.runFor(90);
+    await expect(aim).toHaveAttribute("data-active", "true");
+    await page.clock.runFor(5000);
+    await expect(page.locator("#start")).toHaveText("再試合");
+    await page.locator("#start").click({ force: true });
+    await page.clock.runFor(80);
+    await expect(aim).toHaveAttribute("data-active", "false");
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   });
 });

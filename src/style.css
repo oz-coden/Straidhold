@@ -416,3 +416,93 @@ dialog button { justify-self: end; }
 #round-results { color: var(--muted); padding-inline-start: 1.5rem; }
 #round-results:empty, #round-status:empty { display: none; }
 #round-status { color: var(--muted); font-size: .8rem; }
+
+#combat-feed {
+  position: absolute;
+  z-index: 3;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  width: min(43%, 16rem);
+  max-height: calc(46% - 6px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+#combat-feed li {
+  flex: none;
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 5px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: #ebf5ff;
+  background: #081522dd;
+  border-inline-start: 2px solid var(--blue);
+}
+#combat-feed li[data-team="red"] { border-color: var(--red); }
+#combat-feed li[data-personal="true"] { font-weight: 750; background: #25394cee; }
+#combat-feed li[data-kind="capture"] { border-radius: 0 4px 4px 0; }
+.site progress[data-paused="true"] { --progress: var(--muted); }
+.site[data-capture="contested"] span, .site[data-capture="waiting"] span { color: var(--gold); }
+
+@media (max-height: 420px), (max-width: 480px) {
+  #combat-feed li { padding-block: 0; font-size: 10px; }
+}
+@media (orientation: portrait) and (pointer: coarse) {
+  #combat-feed { top: 24px; max-height: calc(46% - 24px); }
+}
+
+#hit-marker {
+  position: absolute;
+  z-index: 3;
+  inset: 43% auto auto 50%;
+  translate: -50% -50%;
+  pointer-events: none;
+  font: 800 clamp(26px, 6vmin, 40px)/1 system-ui, sans-serif;
+  color: var(--blue);
+  text-shadow: 0 1px 4px #06111e, 0 0 6px #06111e;
+}
+#hit-marker[data-impact="hp"] { color: #ffe1cf; }
+#hit-marker[data-impact="lethal"] { color: var(--gold); font-size: clamp(33px, 8vmin, 48px); }
+#damage-edge {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 21px 2px #63d9fc66;
+}
+#damage-edge[data-impact="hp"] { box-shadow: inset 0 0 24px 3px #ff958c77; }
+#damage-edge[data-impact="lethal"] { box-shadow: inset 0 0 28px 4px #ff958c88; }
+#vitals[data-impact="shield"] .vital:has(#shield) { box-shadow: inset 2px 0 var(--blue); }
+#vitals[data-impact="hp"] .vital:has(#hp),
+#vitals[data-impact="lethal"] .vital:has(#hp) { box-shadow: inset 2px 0 var(--red); }
+@media (prefers-reduced-motion: reduce) {
+  #damage-edge { display: none; }
+}
+
+#result-screen .flow-panel { width: min(100%, 61rem); }
+.result-filter { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; color: var(--muted); }
+.result-filter select { background: #182b3c; color: #e8f3fc; border: 1px solid var(--edge); padding: 5px; border-radius: 4px; }
+.participant-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.participant-results section { min-width: 0; overflow-x: auto; }
+.participant-results table { width: 100%; border-collapse: collapse; text-align: right; font-size: .875rem; font-variant-numeric: tabular-nums; }
+.participant-results caption { color: var(--blue); font-weight: 800; text-align: left; padding-bottom: 4px; }
+.participant-results [data-team="red"] caption { color: var(--red); }
+.participant-results :is(th, td) { border-bottom: 1px solid var(--edge); padding: 4px; }
+.participant-results th:first-child { text-align: left; }
+.participant-results tbody th { font-weight: 600; }
+.participant-results tr[data-player="true"] { background: #1b3549; }
+.participant-results summary { cursor: pointer; }
+.participant-results dl { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; margin: 0; text-align: left; }
+.participant-results dd { margin: 0; text-align: right; }
+@media (max-width: 700px) {
+  .participant-results { grid-template-columns: 1fr; gap: 12px; }
+}

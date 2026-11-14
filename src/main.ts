@@ -11,6 +11,9 @@ import { createFog } from "./web/fog.ts";
 import { createMinimap, mapPreview } from "./web/minimap.ts";
 import { createRoster } from "./web/roster.ts";
 import { ACTIVATE_TICKS, Battle, HZ, ROUND_SECONDS, SITE_RADIUS, STEP } from "./rules/battle.ts";
+import { resultsPanel } from "./web/match-results.ts";
+import { createHitFeedback } from "./web/hit-feedback.ts";
+import { createCombatFeed } from "./web/combat-feedback.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
 import { CHARACTERS, initialMatchSetup, MatchSeries, PLAYER_ID, RoundPreparation, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
@@ -56,6 +59,7 @@ const start = get<HTMLButtonElement>("start");
 const dialog = get<HTMLDialogElement>("settings");
 const leaveDialog = get<HTMLDialogElement>("leave-dialog");
 const life = new AbortController();
+const results = resultsPanel(get("participant-results"), get<HTMLSelectElement>("result-round-select"), life.signal);
 const touchView = {
   layer: get("touch-controls"),
   move: { base: get("stick"), knob: get("knob") },
@@ -153,12 +157,15 @@ game.scene("match", (context) => {
   const arena = match.setup.arena;
   const intro = new RoundPreparation(match.rounds.length === 0);
   let finished = false;
+  let playerHitAt = -Infinity;
   const sites = siteHud(arena);
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
   const battle = new Battle(context.scene, atlas, match.setup.roundSeconds, (fighter, state) =>
-    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false);
+    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false, match.rounds.length + 1);
   const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
+  const feed = createCombatFeed(get("combat-feed"), player.id, player.team);
+  const feedback = createHitFeedback(get("hit-marker"), get("damage-edge"), get("vitals"), player.id);
   const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
   const fog = createFog(game, get("battlefield"), vision, arena);
   const minimap = createMinimap(game, get("battlefield"), battle, player, vision, fog.mask);
@@ -230,6 +237,8 @@ game.scene("match", (context) => {
     roster.paint();
   });
   context.onDispose(() => {
+    feed.dispose();
+    feedback.dispose();
     fog.dispose();
     minimap.dispose();
     roster.dispose();
@@ -267,13 +276,14 @@ game.scene("match", (context) => {
     showVitals("shield", player.shield);
     const respawn = get("respawn");
     respawn.hidden = player.hp > 0 || battle.result !== null;
-    if (!respawn.hidden) display(respawn, `復活まで ${Math.ceil((player.downUntil - battle.tick) / HZ)}秒`);
+    if (!respawn.hidden) display(respawn, `撃破された · 復活まで ${Math.ceil((player.downUntil - battle.tick) / HZ)}秒`);
     const availableSite = battle.sites.find((site) => distance(player.position, site) <= SITE_RADIUS);
     const deploy = intro.phase === "combat" && player.hp > 0 && !!availableSite && !availableSite.device && availableSite.owner !== player.team;
     const deployState = get("deploy-state");
     deployState.dataset.ready = String(deploy);
     display(deployState, deploy ? `${availableSite.id}に装置を設置できる`
-      : availableSite?.device ? `${availableSite.id}の装置が起動中` : "拠点に近づくと設置可能");
+      : availableSite?.device ? `${availableSite.id} ${availableSite.device.contested || availableSite.device.abandoned ? "占領停止中" : "占領進行中"}`
+        : "拠点に近づくと設置可能");
     const terrain = get("terrain-state");
     if (arena.lanes.length) {
       const lane = battle.supply.laneAt(player.position);
@@ -284,10 +294,13 @@ game.scene("match", (context) => {
     }
     const attack = get("attack-state");
     const hasTarget = player.target && vision.shows(player.target);
-    const fired = battle.shots.some(({ from }) => from === player);
+    if (battle.combatEvents.some((event) => event.kind === "damage" && event.attacker === player.id)) playerHitAt = battle.tick;
+    const fired = battle.tick - playerHitAt <= Math.round(HZ * 0.22);
+    feedback.update(battle.combatEvents, battle.tick);
     display(attack, player.hp <= 0 ? "攻撃不可" : fired ? "攻撃命中" : player.command.attack && !hasTarget ? "射程内に有効な対象なし"
       : battle.tick < player.attackAt ? "攻撃クールダウン" : hasTarget ? "攻撃対象を捕捉" : "攻撃待機");
     roster.paint();
+    feed.update(battle.combatEvents, battle.tick);
     battle.sites.forEach(({ id, owner, device }, i) => {
       const { row, state, progress } = sites[i];
       row.dataset.owner = owner ?? "neutral";
@@ -297,7 +310,12 @@ game.scene("match", (context) => {
         row.dataset.supply = supply;
         row.title = supply === "linked" ? "本部に接続" : supply === "cut" ? "補給が途絶" : "";
       }
-      const status = device ? `${names[device.team]}${device.contested ? " 係争" : " 起動"} ${Math.floor(100 * device.progress / ACTIVATE_TICKS)}%` : names[owner ?? "neutral"];
+      const paused = !!device && (device.contested || device.abandoned > 0);
+      const phase = !device ? "idle" : device.contested ? "contested" : device.abandoned ? "waiting" : device.progress ? "active" : "installed";
+      row.dataset.capture = phase;
+      const action = device?.contested ? "係争" : device?.abandoned ? "停止" : device?.progress ? "起動" : "設置";
+      const status = device ? `${names[device.team]} ${action} ${Math.floor(100 * device.progress / ACTIVATE_TICKS)}%`
+        : feed.captureStatus(id) ?? names[owner ?? "neutral"];
       display(state, status);
       const detail = device ? `${names[owner ?? "neutral"]} / ${status}` : status;
       if (state.title !== detail) state.title = detail;
@@ -305,12 +323,14 @@ game.scene("match", (context) => {
       if (device) {
         progress.value = device.progress;
         progress.dataset.team = device.team;
+        progress.dataset.paused = String(paused);
+        progress.setAttribute("aria-valuetext", status);
       }
     });
     if (battle.result && !finished) {
       finished = true;
       touchView.layer.hidden = true;
-      match.finishRound({ winner: battle.result, scores: battle.scores });
+      match.finishRound({ winner: battle.result, scores: battle.scores, participants: battle.participantStats() });
       void showResult(match);
     }
   });
@@ -328,6 +348,8 @@ async function startMatch(next: MatchSeries) {
   transition = true;
   start.disabled = lobbyStart.disabled = true;
   series = next;
+  results.clear();
+  get("round-results").replaceChildren();
   showScreen(screens, "battle");
   try {
     await game.changeScene("match");
@@ -360,14 +382,16 @@ async function showResult(match: MatchSeries) {
   display(get("result-round"), winner === null ? `第${match.rounds.length}ラウンド終了` : "試合結果");
   const roundWinner = winner ?? last.winner;
   display(headline, roundWinner === "draw" ? "引き分け" : `${names[roundWinner]}チームの勝利`);
-  display(mission, match.setup.rule === "single"
-    ? `青 ${last.scores.blue} — ${last.scores.red} 赤`
-    : `ラウンド勝利数　青 ${blue} — ${red} 赤`);
+  const totals = match.scoreTotals;
+  const score = `青 ${totals.blue} — ${totals.red} 赤`;
+  display(mission, match.setup.rule === "single" ? score
+    : `ラウンド勝利数　青 ${blue} — ${red} 赤 ｜ チーム累計スコア　${score}`);
   get("round-results").replaceChildren(...(match.setup.rule === "single" ? [] : match.rounds.map(({ winner, scores }) => {
     const row = document.createElement("li");
     row.textContent = `青 ${scores.blue} — ${scores.red} 赤 · ${winner === "draw" ? "引き分け" : `${names[winner]}の勝利`}`;
     return row;
   })));
+  results.show(match);
   display(start, winner === null ? "次のラウンド" : "再戦");
   for (const button of [start, get<HTMLButtonElement>("result-title"), get<HTMLButtonElement>("result-setup")]) button.disabled = true;
   showScreen(screens, "result");
@@ -444,6 +468,8 @@ start.addEventListener("click", () => {
 for (const [id, screen] of [["result-title", "title"], ["result-setup", "setup"]] as const) {
   get(id).addEventListener("click", () => {
     series = undefined;
+    results.clear();
+    get("round-results").replaceChildren();
     showScreen(screens, screen);
   }, { signal: life.signal });
 }

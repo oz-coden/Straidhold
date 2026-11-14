@@ -6,6 +6,8 @@ import {
 import { distance, placeArena, RADIUS, spawn, TEAMS, toward, trainingArena, type Arena, type Team } from "./arena.ts";
 import { IDLE, validate, ZERO, type Command } from "./command.ts";
 import { seesUnit } from "./vision.ts";
+import { CombatEvents } from "./combat-events.ts";
+import { CaptureContribution, RoundStats } from "./contribution.ts";
 import { Supply, type SupplyMovement } from "./supply.ts";
 
 export const HZ = 60;
@@ -127,13 +129,17 @@ export class Battle {
   tick = 0;
   result: Team | "draw" | null = null;
 
+  private readonly events: CombatEvents;
+  private readonly stats: RoundStats;
+  private readonly captures = new Map<Site, CaptureContribution>();
   private readonly source: CommandSource;
   private started: boolean;
 
-  constructor(scene: Scene, atlas: string, seconds: number, source: CommandSource, arena: Arena = trainingArena, started = true) {
+  constructor(scene: Scene, atlas: string, seconds: number, source: CommandSource, arena: Arena = trainingArena, started = true, round = 1) {
     this.source = source;
     this.started = started;
     this.arena = arena;
+    this.events = new CombatEvents(round);
     if (!Number.isInteger(seconds) || seconds < 1 || seconds > ROUND_SECONDS) throw new RangeError("Invalid round duration");
     this.duration = seconds * HZ;
     this.collisions = new CollisionWorld(scene);
@@ -155,10 +161,15 @@ export class Battle {
         command: IDLE, facing: { x: Math.sign(arena.hq[team === "blue" ? "red" : "blue"].x - arena.hq[team].x), y: Math.sign(arena.hq[team === "blue" ? "red" : "blue"].y - arena.hq[team].y) },
       };
     }));
+    this.stats = new RoundStats(this.fighters);
     scene.onUpdate(() => this.resolve());
   }
 
   get remaining() { return (this.duration - this.tick) / HZ; }
+
+  get combatEvents() { return this.events.events; }
+
+  participantStats() { return this.stats.snapshot(); }
 
   start() { this.started = true; }
 
@@ -199,6 +210,7 @@ export class Battle {
 
   private resolve() {
     if (!this.started || this.result) return;
+    this.events.beginTick(this.tick);
     const cutoff = this.tick - Math.round(HZ * 0.22);
     while (this.shots.length && this.shots[0].tick < cutoff) this.shots.shift();
     const hits: Shot[] = [];
@@ -227,12 +239,14 @@ export class Battle {
     for (const fighter of this.fighters) {
       if (fighter.hp <= 0) continue;
       const quiet = this.tick - fighter.hitAt;
+      const { hp, shield } = fighter;
       if (quiet > fighter.profile.shieldDelay) {
         fighter.shield = Math.min(fighter.profile.shield, fighter.shield + fighter.profile.shieldPerSecond / HZ);
       }
       if (quiet > fighter.profile.shieldDelay && distance(fighter.position, this.arena.hq[fighter.team]) <= 84) {
         fighter.hp = Math.min(fighter.profile.hp, fighter.hp + fighter.profile.hqHealPerSecond / HZ);
       }
+      if (fighter.hp > hp || fighter.shield > shield) this.stats.clearDamage(fighter.id);
     }
     let changed = false;
     for (const site of this.sites) {
@@ -254,11 +268,21 @@ export class Battle {
 
   private damage(target: Fighter, attacker: Fighter) {
     if (target.hp <= 0) return;
+    const { hp, shield } = target;
     const overflow = Math.max(0, attacker.profile.damage - target.shield);
     target.shield = Math.max(0, target.shield - attacker.profile.damage);
     target.hp = Math.max(0, target.hp - overflow);
     target.hitAt = this.tick;
+    if (shield > target.shield || hp > target.hp) {
+      this.stats.recordDamage(attacker, target);
+      this.events.record({
+        kind: "damage", attacker: attacker.id, target: target.id, team: attacker.team,
+        shield: shield - target.shield, hp: hp - target.hp, lethal: target.hp === 0,
+      });
+    }
     if (target.hp === 0) {
+      const assists = this.stats.recordDefeat(attacker, target);
+      this.events.record({ kind: "defeat", attacker: attacker.id, target: target.id, team: attacker.team, assists });
       const elapsed = 1 - this.remaining / (this.duration / HZ);
       target.downUntil = this.tick + Math.round((2 + 8 * Math.min(1, elapsed / 0.8)) * HZ);
       target.target = undefined;
@@ -275,19 +299,32 @@ export class Battle {
       const first = installers[0];
       if (first && installers.every((fighter) => fighter.team === first.team)) {
         site.device = { team: first.team, progress: 0, abandoned: 0, contested: false };
+        this.captures.set(site, new CaptureContribution(first.id));
       }
       return;
     }
     const device = site.device;
-    const guarding = inside.some((fighter) => fighter.team === device.team);
+    const guards = inside.filter((fighter) => fighter.team === device.team);
     device.contested = inside.some((fighter) => fighter.team !== device.team);
-    device.abandoned = guarding ? 0 : device.abandoned + 1;
+    device.abandoned = guards.length ? 0 : device.abandoned + 1;
     if (device.abandoned >= ABANDON_TICKS) {
+      this.captures.delete(site);
       site.device = null;
-    } else if (guarding && !device.contested && ++device.progress >= ACTIVATE_TICKS) {
-      site.owner = device.team;
-      this.scores[device.team] += 4;
-      site.device = null;
+    } else if (guards.length && !device.contested) {
+      const contribution = this.captures.get(site)!;
+      contribution.advance(guards);
+      if (++device.progress >= ACTIVATE_TICKS) {
+        const previous = site.owner;
+        site.owner = device.team;
+        this.scores[device.team] += 4;
+        const participants = this.stats.recordCapture(contribution);
+        this.events.record({
+          kind: "capture", site: site.id, team: device.team, previous,
+          installer: contribution.installer, guards: participants,
+        });
+        this.captures.delete(site);
+        site.device = null;
+      }
     }
   }
 }

@@ -10,7 +10,7 @@
     <section id="title-screen" class="flow-screen title-screen" aria-labelledby="title-heading">
       <div class="flow-panel title-panel">
         <h1 id="title-heading" tabindex="-1" data-screen-focus>Straidhold</h1>
-        <p class="flow-muted">5対5の拠点占領戦 <small class="title-version">v0.3.0</small></p>
+        <p class="flow-muted">5対5の拠点占領戦 <small class="title-version">v0.3.1</small></p>
         <nav class="title-menu" aria-label="メインメニュー">
           <button id="solo" class="primary" type="button">ソロモード</button>
           <button class="secondary" type="button" disabled>ストーリーモード <small>準備中</small></button>
@@ -83,6 +83,8 @@
         <h1 id="headline" tabindex="-1" data-screen-focus></h1>
         <p id="mission" class="flow-muted"></p>
         <ol id="round-results"></ol>
+        <label class="result-filter">個人成績 <select id="result-round-select"></select></label>
+        <div id="participant-results" class="participant-results"></div>
         <div class="flow-actions">
           <button id="result-title" class="secondary" type="button">タイトルへ</button>
           <button id="result-setup" class="secondary" type="button">対戦設定へ</button>
@@ -108,6 +110,9 @@
       <section id="battlefield" class="battlefield" aria-label="戦場">
         <div id="game"></div>
         <div id="map-labels" aria-hidden="true"></div>
+        <div id="damage-edge" aria-hidden="true" hidden></div>
+        <span id="hit-marker" aria-hidden="true" hidden></span>
+        <ol id="combat-feed" aria-label="戦況通知"></ol>
         <div id="touch-controls" hidden>
           <div id="stick" class="touch-stick" aria-label="移動スティック"><span id="knob" class="stick-knob"></span></div>
           <div id="aim-stick" class="touch-stick" aria-label="攻撃スティック"><span id="aim-knob" class="stick-knob"></span></div>
@@ -125,7 +130,7 @@
         <div id="rotate" aria-hidden="true">横画面にすると操作しやすくなります</div>
       </section>
       <footer id="hud" class="match-footer">
-        <div class="vitals">
+        <div id="vitals" class="vitals">
           <div class="vital"><label for="hp">HP</label><meter id="hp" min="0" max="100" value="100"></meter><output id="hp-value">100</output></div>
           <div class="vital"><label for="shield">シールド</label><meter id="shield" min="0" max="100" value="100"></meter><output id="shield-value">100</output></div>
         </div>

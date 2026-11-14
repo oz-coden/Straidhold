@@ -1,5 +1,6 @@
 import { HZ, ROUND_SECONDS } from "../rules/battle.ts";
 import type { Arena, Team } from "../rules/arena.ts";
+import { totalParticipants, type ParticipantStats } from "../rules/contribution.ts";
 import { arenas } from "../rules/maps.ts";
 
 export const RULES = {
@@ -29,6 +30,7 @@ export type RoundWinner = Team | "draw";
 export interface RoundResult {
   readonly winner: RoundWinner;
   readonly scores: Readonly<Record<Team, number>>;
+  readonly participants: readonly ParticipantStats[];
 }
 
 export class MatchSeries {
@@ -40,6 +42,17 @@ export class MatchSeries {
   }
 
   get rounds(): readonly RoundResult[] { return this.completed; }
+
+  get participantTotals() { return totalParticipants(this.completed.map(({ participants }) => participants)); }
+
+  get scoreTotals(): Record<Team, number> {
+    const scores = { blue: 0, red: 0 };
+    for (const round of this.completed) {
+      scores.blue += round.scores.blue;
+      scores.red += round.scores.red;
+    }
+    return scores;
+  }
 
   get wins(): Record<Team, number> {
     const wins = { blue: 0, red: 0 };
@@ -60,7 +73,11 @@ export class MatchSeries {
 
   finishRound(result: RoundResult) {
     if (this.winner !== null) throw new Error("Match is already complete");
-    this.completed.push({ winner: result.winner, scores: { ...result.scores } });
+    this.completed.push({
+      winner: result.winner,
+      scores: { ...result.scores },
+      participants: result.participants.map((participant) => ({ ...participant })),
+    });
   }
 }
 

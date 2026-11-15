@@ -1,3 +1,4 @@
+import { ClassAbilities } from "./class-abilities.ts";
 import { STANDARD_LINEUP, type ClassId, type Lineup } from "./classes.ts";
 import {
   Actor, Collider, CollisionBody, CollisionResponse, CollisionShape, CollisionWorld,
@@ -125,6 +126,7 @@ export class Battle {
   readonly fighters: readonly Fighter[];
   readonly sites: Site[];
   readonly supply: Supply;
+  readonly abilities: ClassAbilities;
   readonly scores = { blue: 0, red: 0 };
   readonly kills = { blue: 0, red: 0 };
   readonly shots: Shot[] = [];
@@ -166,6 +168,7 @@ export class Battle {
       };
     }));
     this.stats = new RoundStats(this.fighters);
+    this.abilities = new ClassAbilities(this, HZ);
     scene.onUpdate(() => this.resolve());
   }
 
@@ -182,6 +185,7 @@ export class Battle {
   private read() {
     if (!this.started || this.result) return;
     this.tick++;
+    this.abilities.expire(this.tick);
     // Read every source against the same state before applying any commands.
     for (const fighter of this.fighters) {
       if (fighter.hp === 0 && this.tick >= fighter.downUntil) {
@@ -199,6 +203,10 @@ export class Battle {
     const commands = this.fighters.map((fighter) => {
       const command = this.source(fighter, this);
       return fighter.hp > 0 ? validate(command) : IDLE;
+    });
+    this.fighters.forEach((fighter, i) => {
+      const skill = commands[i].skill;
+      if (skill && this.abilities.activate(fighter, skill)) this.stats.recordSkill(fighter.id);
     });
     this.fighters.forEach((fighter, i) => {
       // Sample after respawns and before Motion and collision resolution.
@@ -292,6 +300,7 @@ export class Battle {
       const lead = this.scores.blue - this.scores.red || owned("blue") - owned("red") || this.kills.blue - this.kills.red;
       this.result = lead === 0 ? "draw" : lead > 0 ? "blue" : "red";
       this.stats.finishRound();
+      this.abilities.clear();
       for (const fighter of this.fighters) Object.assign(fighter.motion.direction, ZERO);
     }
   }
@@ -315,6 +324,7 @@ export class Battle {
       target.downUntil = this.tick + Math.round((2 + 8 * Math.min(1, elapsed / 0.8)) * HZ);
       target.target = undefined;
       target.actor.enabled = false;
+      this.abilities.onDefeat(target);
       this.kills[attacker.team]++;
       this.scores[attacker.team] += 2;
     }

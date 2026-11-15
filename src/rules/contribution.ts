@@ -13,13 +13,13 @@ export const STREAK_MILESTONES = [3, 5, 10] as const;
 
 const additiveStats = [
   "kills", "assists", "deaths", "captures", "installationUnits", "guardingUnits",
-  "distanceMoved", "shieldDamage", "hpDamage", "shieldRecovered", "hpRecovered",
+  "skillUses", "distanceMoved", "shieldDamage", "hpDamage", "shieldRecovered", "hpRecovered",
 ] as const;
 
 export function emptyStats() {
   return {
     kills: 0, assists: 0, deaths: 0, captures: 0, installationUnits: 0, guardingUnits: 0,
-    distanceMoved: 0, shieldDamage: 0, hpDamage: 0, shieldRecovered: 0, hpRecovered: 0,
+    skillUses: 0, distanceMoved: 0, shieldDamage: 0, hpDamage: 0, shieldRecovered: 0, hpRecovered: 0,
     currentStreak: 0, maxStreak: 0,
   };
 }
@@ -86,6 +86,8 @@ export class RoundStats {
     for (const { id, units } of awards) this.participants.get(id)!.guardingUnits += units;
     return awards.map(({ id }) => id);
   }
+
+  recordSkill(id: string) { this.participants.get(id)!.skillUses++; }
 
   recordMovement(id: string, amount: number) {
     this.participants.get(id)!.distanceMoved += amount;

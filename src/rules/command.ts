@@ -1,10 +1,16 @@
 import type { Point } from "@simpludify/core";
 
+export type SkillOrder =
+  | { readonly kind: "self" }
+  | { readonly kind: "ally"; readonly id: string }
+  | { readonly kind: "point"; readonly point: Point };
+
 export interface Command {
   readonly move: Point;
   readonly aim: Point | null;
   readonly attack: boolean;
   readonly deploy: boolean;
+  readonly skill?: SkillOrder;
 }
 
 export const ZERO: Point = Object.freeze({ x: 0, y: 0 });
@@ -27,5 +33,6 @@ export function validate(command: Command): Command {
     aim: aim === ZERO ? null : aim,
     attack: command.attack === true,
     deploy: command.deploy === true,
+    skill: command.skill,
   };
 }

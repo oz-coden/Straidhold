@@ -368,6 +368,8 @@ test("the follow camera stays at the last position during death and returns to H
 });
 
 test("all five tactical maps launch with their own layout and allow changing maps after a round", async ({ page }) => {
+  // Five full scene transitions with a software renderer share this test budget.
+  test.setTimeout(240_000);
   const layouts = [
     ["twin-forks", 7, "0 0 2560 1216"],
     ["three-crossings", 7, "0 0 2624 1344"],

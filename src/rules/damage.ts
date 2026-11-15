@@ -11,6 +11,7 @@ export interface DamageContext {
   readonly request: DamageRequest;
   readonly targetId: string;
   readonly amount: number;
+  readonly transferred?: true;
 }
 
 interface DamagePools {
@@ -19,6 +20,7 @@ interface DamagePools {
 }
 
 export interface DamageResult {
+  readonly barrierDamage?: number;
   readonly request: DamageRequest;
   readonly targetId: string;
   readonly shieldDamage: number;
@@ -29,6 +31,15 @@ export interface DamageResult {
 
 export function beginDamage(request: DamageRequest): DamageContext {
   return { request, targetId: request.targetId, amount: request.baseDamage };
+}
+
+export function transferDamage(context: DamageContext, targetId: string, amount: number): DamageContext {
+  return { request: context.request, targetId, amount, transferred: true };
+}
+
+export function barrierResult(context: DamageContext, target: DamagePools, absorbed: number): DamageResult {
+  return { request: context.request, targetId: context.targetId, barrierDamage: absorbed,
+    shieldDamage: 0, hpDamage: 0, remaining: { shield: target.shield, hp: target.hp }, lethal: false };
 }
 
 /**

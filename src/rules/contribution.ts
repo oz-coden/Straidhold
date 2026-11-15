@@ -13,13 +13,13 @@ export const STREAK_MILESTONES = [3, 5, 10] as const;
 
 const additiveStats = [
   "kills", "assists", "deaths", "captures", "installationUnits", "guardingUnits",
-  "skillUses", "distanceMoved", "shieldDamage", "hpDamage", "shieldRecovered", "hpRecovered",
+  "skillUses", "damageDealt", "barrierDamage", "distanceMoved", "shieldDamage", "hpDamage", "shieldRecovered", "hpRecovered",
 ] as const;
 
 export function emptyStats() {
   return {
     kills: 0, assists: 0, deaths: 0, captures: 0, installationUnits: 0, guardingUnits: 0,
-    skillUses: 0, distanceMoved: 0, shieldDamage: 0, hpDamage: 0, shieldRecovered: 0, hpRecovered: 0,
+    skillUses: 0, damageDealt: 0, barrierDamage: 0, distanceMoved: 0, shieldDamage: 0, hpDamage: 0, shieldRecovered: 0, hpRecovered: 0,
     currentStreak: 0, maxStreak: 0,
   };
 }
@@ -108,11 +108,13 @@ export class RoundStats {
     for (const row of this.participants.values()) row.currentStreak = 0;
   }
 
-  recordDamage(attacker: Participant, target: Participant, shield: number, hp: number) {
+  recordDamage(attacker: Participant, target: Participant, shield: number, hp: number, barrier = 0) {
     const row = this.participants.get(target.id)!;
+    row.barrierDamage += barrier;
     row.shieldDamage += shield;
     row.hpDamage += hp;
     if (attacker.team === target.team) return;
+    this.participants.get(attacker.id)!.damageDealt += shield + hp + barrier;
     let attackers = this.attackers.get(target.id);
     if (!attackers) this.attackers.set(target.id, attackers = new Set());
     attackers.add(attacker.id);

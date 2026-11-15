@@ -97,7 +97,8 @@ test("supply speed ramps, breaks on hit or exit, and enemy slowdown follows grap
   assert.equal(state.boost, 0);
   const middleSpeed = supply.speed(state, "red", mid, 5, true, STEP);
   assert.ok(supply.speed(state, "red", blueHQ, 5, true, STEP) < middleSpeed);
-  assert.equal(supply.speed(state, "red", jungle, 5, true, STEP), 1);
+  const recovering = supply.speed(state, "red", jungle, 5, true, STEP);
+  assert.ok(recovering < 1 && recovering > 0.76);
   assert.ok(state.slow > 0);
   assert.equal(supply.speed(state, "red", neutral, 5, true, 2), 1);
   assert.equal(state.slow, 0);

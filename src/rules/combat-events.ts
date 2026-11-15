@@ -2,7 +2,7 @@ import type { Team } from "./arena.ts";
 
 type EventDetails =
   | { readonly kind: "damage"; readonly attackId: string; readonly originalTarget: string; readonly attacker: string; readonly target: string; readonly team: Team;
-      readonly shield: number; readonly hp: number; readonly lethal: boolean }
+      readonly shield: number; readonly barrier?: number; readonly hp: number; readonly lethal: boolean }
   | { readonly kind: "defeat"; readonly attacker: string; readonly target: string; readonly team: Team;
       readonly assists: readonly string[]; readonly streak: number; readonly stoppedStreak: number }
   | { readonly kind: "capture"; readonly site: string; readonly team: Team; readonly previous: Team | null;

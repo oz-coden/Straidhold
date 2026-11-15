@@ -47,7 +47,12 @@ export class ClassAbilities {
   private readonly contacts = { blue: new Map<string, ReconContact>(), red: new Map<string, ReconContact>() };
   private readonly pulses: Scan[] = [];
 
-  constructor(private readonly battle: Battle, private readonly hz: number) {
+  private readonly battle: Battle;
+  private readonly hz: number;
+
+  constructor(battle: Battle, hz: number) {
+    this.battle = battle;
+    this.hz = hz;
     for (const fighter of battle.fighters) {
       const { classId, id, team } = fighter;
       if (classId === "tank") this.effects.add({

@@ -13,6 +13,12 @@ export interface SupplyMovement {
   slow: number;
 }
 
+interface SupplyModifiers {
+  readonly supplyRamp: number;
+  readonly supplySlow: number;
+  readonly supplyRecovery: number;
+}
+
 export class Supply {
   readonly connected = { blue: new Set<string>(), red: new Set<string>() };
   readonly lanes: (Team | null)[];
@@ -93,15 +99,18 @@ export class Supply {
     return Math.min(depth.get(lane.from)! + traveled, depth.get(lane.to)! + lane.length - traveled);
   }
 
-  speed(state: SupplyMovement, team: Team, point: Point, quiet: number, moving: boolean, dt: number): number {
+  speed(state: SupplyMovement, team: Team, point: Point, quiet: number, moving: boolean, dt: number, modifiers?: SupplyModifiers): number {
     if (!this.lanes.length) return 1;
     const index = this.laneAt(point);
     const owner = this.lanes[index];
+    const maxSlow = MAX_SLOW * (modifiers?.supplySlow ?? 1);
+    const ramp = RAMP_SECONDS * (modifiers?.supplyRamp ?? 1);
+    const recovery = RECOVERY_SECONDS * (modifiers?.supplyRecovery ?? 1);
     state.boost = owner === team && quiet >= HIT_DELAY_SECONDS
-      ? Math.min(MAX_BOOST, state.boost + (moving ? MAX_BOOST * dt / RAMP_SECONDS : 0)) : 0;
+      ? Math.min(MAX_BOOST, state.boost + (moving ? MAX_BOOST * dt / ramp : 0)) : 0;
     state.slow = owner && owner !== team
-      ? MAX_SLOW * Math.min(1, this.invasionDepth(index, point) / FULL_DEPTH)
-      : Math.max(0, state.slow - MAX_SLOW * dt / RECOVERY_SECONDS);
-    return index < 0 ? 1 : 1 + state.boost - state.slow;
+      ? maxSlow * Math.min(1, this.invasionDepth(index, point) / FULL_DEPTH)
+      : Math.max(0, state.slow - maxSlow * dt / recovery);
+    return 1 + state.boost - state.slow;
   }
 }

@@ -1,5 +1,5 @@
 import { ClassAbilities } from "./class-abilities.ts";
-import { STANDARD_LINEUP, type ClassId, type Lineup } from "./classes.ts";
+import { CLASSES, STANDARD_LINEUP, type ClassId, type Lineup } from "./classes.ts";
 import {
   Actor, Collider, CollisionBody, CollisionResponse, CollisionShape, CollisionWorld,
   Component, defineComponent, Motion, Transform,
@@ -9,7 +9,7 @@ import { distance, placeArena, RADIUS, spawn, TEAMS, toward, trainingArena, type
 import { IDLE, validate, ZERO, type Command } from "./command.ts";
 import { seesUnit } from "./vision.ts";
 import { CombatEvents } from "./combat-events.ts";
-import { beginDamage, resolveDamage, type DamageResult } from "./damage.ts";
+import { barrierResult, beginDamage, resolveDamage, transferDamage, type DamageContext, type DamageResult } from "./damage.ts";
 import { CaptureContribution, RoundStats } from "./contribution.ts";
 import { Supply, type SupplyMovement } from "./supply.ts";
 
@@ -155,6 +155,10 @@ export class Battle {
     scene.add(new Actor({ id: "commands" })).add(new ReadCommands(() => this.read()));
     this.fighters = TEAMS.flatMap((team) => Array.from({ length: 5 }, (_, slot) => {
       const id = `${team}-${slot}`;
+      const classId = lineup[team][slot];
+      const profile = classId === "recon"
+        ? { ...recruit, vision: recruit.vision * (1 + CLASSES.recon.visionBoost) }
+        : recruit;
       const actor = scene.add(new Actor({ id }));
       const position = actor.add(new Transform(spawn(team, slot, arena)));
       const motion = actor.add(new Motion({ speed: recruit.speed }));
@@ -162,7 +166,7 @@ export class Battle {
       // Units share space with each other. Only the terrain layer blocks movement.
       actor.add(new Collider({ shape: CollisionShape.Circle, radius: RADIUS, response: CollisionResponse.Solid, layer: 2, mask: 1 }));
       return {
-        id, team, slot, classId: lineup[team][slot], actor, position, motion, profile: recruit,
+        id, team, slot, classId, actor, position, motion, profile,
         hp: recruit.hp, shield: recruit.shield, downUntil: 0, hitAt: -Infinity, attackAt: 0, revealedUntil: 0, supplyMovement: { boost: 0, slow: 0 },
         command: IDLE, facing: { x: Math.sign(arena.hq[team === "blue" ? "red" : "blue"].x - arena.hq[team].x), y: Math.sign(arena.hq[team === "blue" ? "red" : "blue"].y - arena.hq[team].y) },
       };
@@ -216,10 +220,12 @@ export class Battle {
       const command = commands[i];
       fighter.command = command;
       Object.assign(fighter.motion.direction, command.move);
-      if (fighter.hp > 0 && this.arena.lanes.length) {
-        const multiplier = this.supply.speed(fighter.supplyMovement, fighter.team, fighter.position,
-          (this.tick - fighter.hitAt) / HZ, command.move !== ZERO, STEP);
-        fighter.motion.speed = fighter.profile.speed * multiplier;
+      if (fighter.hp > 0) {
+        const assassin = fighter.classId === "assassin" ? CLASSES.assassin : undefined;
+        const supply = this.supply.speed(fighter.supplyMovement, fighter.team, fighter.position,
+          (this.tick - fighter.hitAt) / HZ, command.move !== ZERO, STEP, assassin);
+        const slow = this.abilities.effects.total(fighter, "movementSlow");
+        fighter.motion.speed = fighter.profile.speed * (1 + (assassin?.speedBoost ?? 0)) * Math.max(0, supply - slow);
       }
       if (command.aim) fighter.facing = command.aim;
       else if (command.move !== ZERO) fighter.facing = command.move;
@@ -254,17 +260,16 @@ export class Battle {
     // Reveal after collecting all attacks to preserve simultaneous decisions.
     // Both sides can land shots captured at the start of this tick. End
     // their streaks after all such shots resolve, regardless of roster order.
-    const previousStreaks = hits.map(({ to }) => this.stats.currentStreak(to.id));
+    const previousStreaks = hits.length ? new Map(this.fighters.map(({ id }) => [id, this.stats.currentStreak(id)])) : undefined;
+    const damageBonuses = hits.map(({ from }) => this.abilities.effects.total(from, "outgoingDamage"));
     for (const [i, hit] of hits.entries()) {
       hit.from.revealedUntil = this.tick + 1.5 * HZ;
       const context = beginDamage({
         attackId: `${this.tick}:${i}`, attackerId: hit.from.id, targetId: hit.to.id,
         baseDamage: hit.from.profile.damage,
       });
-      // Apply buffs/debuffs here before special handling (barriers, then
-      // redirection). Resolve ordinary shield and HP for each resulting context.
-      const damage = resolveDamage(context, hit.to);
-      if (damage) this.applyDamage(damage, hit.from, hit.to, previousStreaks[i]);
+      this.resolveHit({ ...context, amount: context.amount * Math.max(0, 1 + damageBonuses[i]) },
+        hit.from, hit.to, previousStreaks!);
     }
     for (const event of this.combatEvents) {
       if (event.kind === "defeat") this.stats.resetStreak(event.target);
@@ -305,17 +310,46 @@ export class Battle {
     }
   }
 
+  private resolveHit(context: DamageContext, attacker: Fighter, target: Fighter, previousStreaks: ReadonlyMap<string, number>) {
+    if (target.hp <= 0) return;
+    const reduction = this.abilities.effects.total(target, "damageReduction");
+    let amount = context.amount * Math.max(0, 1 - reduction);
+    if (amount <= 0 || !Number.isFinite(amount)) return;
+
+    // A barrier takes the entire hit, including the overflow on its breaking blow.
+    const stoppedStreak = previousStreaks.get(target.id) ?? 0;
+    const absorbed = this.abilities.absorb(target, amount);
+    if (absorbed > 0) {
+      this.applyDamage(barrierResult(context, target, absorbed), attacker, target, stoppedStreak);
+      return;
+    }
+
+    // All links divide the same primary amount. Derived hits keep attribution
+    // and restart at the recipient's defenses, with no outgoing modifiers or links.
+    if (!context.transferred) {
+      const guards = this.abilities.protectors(target).filter(({ source }) => source.hp > 0)
+        .sort((a, b) => a.source.slot - b.source.slot);
+      const share = amount * CLASSES.tank.share;
+      amount -= share * guards.length;
+      for (const { source } of guards) {
+        this.resolveHit(transferDamage(context, source.id, share), attacker, source, previousStreaks);
+      }
+    }
+    const damage = resolveDamage({ ...context, amount }, target);
+    if (damage) this.applyDamage(damage, attacker, target, stoppedStreak);
+  }
+
   private applyDamage(damage: DamageResult, attacker: Fighter, target: Fighter, stoppedStreak: number) {
-    const { request, targetId, shieldDamage, hpDamage, remaining, lethal } = damage;
+    const { request, targetId, shieldDamage, hpDamage, barrierDamage, remaining, lethal } = damage;
     target.shield = remaining.shield;
     target.hp = remaining.hp;
     target.hitAt = this.tick;
 
-    this.stats.recordDamage(attacker, target, shieldDamage, hpDamage);
+    this.stats.recordDamage(attacker, target, shieldDamage, hpDamage, barrierDamage);
     this.events.record({
       kind: "damage", attackId: request.attackId, attacker: request.attackerId,
       originalTarget: request.targetId, target: targetId, team: attacker.team,
-      shield: shieldDamage, hp: hpDamage, lethal,
+      shield: shieldDamage, hp: hpDamage, ...(barrierDamage ? { barrier: barrierDamage } : {}), lethal,
     });
     if (lethal) {
       const { assists, streak } = this.stats.recordDefeat(attacker, target);

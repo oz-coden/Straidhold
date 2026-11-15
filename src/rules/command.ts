@@ -33,6 +33,6 @@ export function validate(command: Command): Command {
     aim: aim === ZERO ? null : aim,
     attack: command.attack === true,
     deploy: command.deploy === true,
-    skill: command.skill,
+    ...(command.skill ? { skill: command.skill } : {}),
   };
 }

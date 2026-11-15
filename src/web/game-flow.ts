@@ -1,3 +1,4 @@
+import { soloLineup, type ClassId, type Lineup } from "../rules/classes.ts";
 import { HZ, ROUND_SECONDS } from "../rules/battle.ts";
 import type { Arena, Team } from "../rules/arena.ts";
 import { selectAwards, type Award } from "../rules/awards.ts";
@@ -10,20 +11,10 @@ export const RULES = {
 } as const;
 export type RuleId = keyof typeof RULES;
 
-export const CHARACTERS = {
-  assassin: "アサシン",
-  tank: "タンク",
-  recon: "リコン",
-  control: "コントロール",
-  support: "サポート",
-} as const;
-export type CharacterId = keyof typeof CHARACTERS;
-export const PLAYER_ID = "blue-2";
-
 export interface MatchSetup {
   readonly arena: Arena;
   readonly rule: RuleId;
-  readonly character: CharacterId;
+  readonly character: ClassId;
   readonly roundSeconds: number;
 }
 
@@ -36,11 +27,13 @@ export interface RoundResult {
 
 export class MatchSeries {
   readonly setup: MatchSetup;
+  readonly lineup: Lineup;
   private readonly completed: RoundResult[] = [];
   private finalAwards?: readonly Award[];
 
-  constructor(setup: MatchSetup) {
+  constructor(setup: MatchSetup, lineup = soloLineup(setup.character)) {
     this.setup = { ...setup };
+    this.lineup = lineup;
   }
 
   get rounds(): readonly RoundResult[] { return this.completed; }

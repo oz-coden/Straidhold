@@ -1,3 +1,4 @@
+import { CLASSES, CLASS_IDS, PLAYER_ID, soloLineup, type ClassId, type Lineup } from "./rules/classes.ts";
 import { Aspect, Camera, Game, type Point } from "@simpludify/web";
 import "@simpludify/web/style.css";
 import "./style.css";
@@ -17,7 +18,7 @@ import { createCombatFeed } from "./web/combat-feedback.ts";
 import { createStreakPresentation } from "./web/streak-presentation.ts";
 import { createField } from "./web/field.ts";
 import { createInput, initialInputMode } from "./web/input.ts";
-import { CHARACTERS, initialMatchSetup, MatchSeries, PLAYER_ID, RoundPreparation, RULES, showScreen, type CharacterId, type RuleId } from "./web/game-flow.ts";
+import { initialMatchSetup, MatchSeries, RoundPreparation, RULES, showScreen, type RuleId } from "./web/game-flow.ts";
 import { settingsPanel, type InputMode } from "./web/settings.ts";
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -30,6 +31,7 @@ const lobbyStart = get<HTMLButtonElement>("lobby-start");
 const lobbyReady = get<HTMLButtonElement>("lobby-ready");
 const lobbyError = get("lobby-error");
 let ready = false;
+let confirmedLineup: Lineup | undefined;
 let rendererReady = false;
 let updateCameraLayout: (() => void) | undefined;
 let paintOverlay: (() => void) | undefined;
@@ -163,7 +165,7 @@ game.scene("match", (context) => {
   const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
   const battle = new Battle(context.scene, atlas, match.setup.roundSeconds, (fighter, state) =>
-    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false, match.rounds.length + 1);
+    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false, match.rounds.length + 1, match.lineup);
   const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
   const feed = createCombatFeed(get("combat-feed"), player.id, player.team);
   const streakPresentation = createStreakPresentation(get("streak-banner"), player.id, HZ);
@@ -412,7 +414,7 @@ async function showResult(match: MatchSeries) {
   }
 }
 const choices = get("character-choice");
-const characterIds = Object.keys(CHARACTERS) as CharacterId[];
+const characterIds = CLASS_IDS;
 for (const id of characterIds) {
   const label = document.createElement("label");
   const input = document.createElement("input");
@@ -423,11 +425,11 @@ for (const id of characterIds) {
   input.addEventListener("change", () => {
     if (input.checked) setup = { ...setup, character: id };
   }, { signal: life.signal });
-  label.append(input, CHARACTERS[id]);
+  label.append(input, CLASSES[id].name);
   choices.append(label);
 }
 
-const playerStatus = document.createElement("small");
+const lobbyStatuses: { team: "blue" | "red"; slot: number; playerSlot: boolean; status: HTMLElement }[] = [];
 for (const team of ["blue", "red"] as const) {
   const list = get(`lobby-${team}`);
   characterIds.forEach((_, slot) => {
@@ -435,8 +437,8 @@ for (const team of ["blue", "red"] as const) {
     const playerSlot = `${team}-${slot}` === PLAYER_ID;
     row.append(playerSlot ? document.createElement("strong") : document.createElement("span"));
     row.firstElementChild!.textContent = playerSlot ? "あなた" : `AI ${slot + 1}`;
-    const status = playerSlot ? playerStatus : document.createElement("small");
-    if (!playerSlot) status.textContent = "準備完了";
+    const status = document.createElement("small");
+    lobbyStatuses.push({ team, slot, playerSlot, status });
     row.append(status);
     list.append(row);
   });
@@ -444,11 +446,15 @@ for (const team of ["blue", "red"] as const) {
 function updateReady() {
   lobbyReady.setAttribute("aria-pressed", String(ready));
   lobbyReady.textContent = ready ? "準備を取り消す" : "準備完了";
-  playerStatus.textContent = `${CHARACTERS[setup.character]} · ${ready ? "準備完了" : "準備中"}`;
+  const lineup = confirmedLineup ?? soloLineup(setup.character);
+  for (const { team, slot, playerSlot, status } of lobbyStatuses) {
+    status.textContent = `${CLASSES[lineup[team][slot]].name} · ${playerSlot && !ready ? "準備中" : "準備完了"}`;
+  }
   lobbyStart.disabled = !ready || !rendererReady || transition;
 }
 function openLobby() {
   ready = false;
+  confirmedLineup = undefined;
   display(get("lobby-summary"), `${setup.arena.name} · ${RULES[setup.rule].label}`);
   updateReady();
   showScreen(screens, "lobby");
@@ -460,10 +466,11 @@ for (const [id, screen] of [
 get("character-next").addEventListener("click", openLobby, { signal: life.signal });
 lobbyReady.addEventListener("click", () => {
   ready = !ready;
+  confirmedLineup = ready ? soloLineup(setup.character) : undefined;
   updateReady();
 }, { signal: life.signal });
 lobbyStart.addEventListener("click", () => {
-  if (ready && rendererReady) void startMatch(new MatchSeries(setup));
+  if (confirmedLineup && rendererReady) void startMatch(new MatchSeries(setup, confirmedLineup));
 }, { signal: life.signal });
 skipPreparation.addEventListener("click", () => {
   preparation?.skipPreparation();

@@ -1,7 +1,8 @@
 import { awardBonusUnits, awardUnits, type Award } from "../rules/awards.ts";
 import { TEAMS } from "../rules/arena.ts";
 import { contributionUnits, POINTS, POINT_UNITS } from "../rules/contribution.ts";
-import { MatchSeries, PLAYER_ID } from "./game-flow.ts";
+import { MatchSeries } from "./game-flow.ts";
+import { PLAYER_ID } from "../rules/classes.ts";
 import { participantLabel } from "./combat-feedback.ts";
 
 const points = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 });

@@ -1,3 +1,4 @@
+import { STANDARD_LINEUP, type ClassId, type Lineup } from "./classes.ts";
 import {
   Actor, Collider, CollisionBody, CollisionResponse, CollisionShape, CollisionWorld,
   Component, defineComponent, Motion, Transform,
@@ -48,6 +49,7 @@ export interface Fighter {
   readonly id: string;
   readonly team: Team;
   readonly slot: number;
+  readonly classId: ClassId;
   readonly actor: Actor;
   readonly position: Transform;
   readonly motion: Motion;
@@ -137,7 +139,7 @@ export class Battle {
   private readonly source: CommandSource;
   private started: boolean;
 
-  constructor(scene: Scene, atlas: string, seconds: number, source: CommandSource, arena: Arena = trainingArena, started = true, round = 1) {
+  constructor(scene: Scene, atlas: string, seconds: number, source: CommandSource, arena: Arena = trainingArena, started = true, round = 1, lineup: Lineup = STANDARD_LINEUP) {
     this.source = source;
     this.started = started;
     this.arena = arena;
@@ -158,7 +160,7 @@ export class Battle {
       // Units share space with each other. Only the terrain layer blocks movement.
       actor.add(new Collider({ shape: CollisionShape.Circle, radius: RADIUS, response: CollisionResponse.Solid, layer: 2, mask: 1 }));
       return {
-        id, team, slot, actor, position, motion, profile: recruit,
+        id, team, slot, classId: lineup[team][slot], actor, position, motion, profile: recruit,
         hp: recruit.hp, shield: recruit.shield, downUntil: 0, hitAt: -Infinity, attackAt: 0, revealedUntil: 0, supplyMovement: { boost: 0, slow: 0 },
         command: IDLE, facing: { x: Math.sign(arena.hq[team === "blue" ? "red" : "blue"].x - arena.hq[team].x), y: Math.sign(arena.hq[team === "blue" ? "red" : "blue"].y - arena.hq[team].y) },
       };

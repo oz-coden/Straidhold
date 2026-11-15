@@ -70,3 +70,26 @@ test("series awards only after the last round and takes the maximum streak, not 
   assert.equal(new MatchSeries(match.setup).awards, undefined);
   assert.deepEqual([1_563_867, 1_528_889, 552_621, 500].map(displayPoints), ["1,564 pt", "1,529 pt", "553 pt", "1 pt"]);
 });
+
+test("damage and skill awards use exact values, match totals, ties and the existing point schedule", () => {
+  const totals = [
+    row("blue-0", { damageDealt: 100.04, skillUses: 3 }),
+    row("red-0", { damageDealt: 100.03, skillUses: 3 }),
+    row("red-1", { damageDealt: 100.03, skillUses: 2, kills: 1 }),
+  ];
+  const awards = selectAwards(totals);
+  assert.deepEqual(awards.filter(({ id }) => id === "damage-dealt").map((award) =>
+    [award.rank, award.participants, awardUnits(award)]), [
+    [1, ["blue-0"], 30_000], [2, ["red-0", "red-1"], 15_000],
+  ]);
+  assert.deepEqual(awards.filter(({ id }) => id === "skill-uses").map((award) =>
+    [award.rank, award.participants, awardUnits(award)]), [[1, ["blue-0", "red-0"], 30_000]]);
+  assert.deepEqual(awards.find(({ id }) => id === "mvp")?.participants, ["red-1"]);
+  const match = new MatchSeries({ ...initialMatchSetup(new URLSearchParams()), rule: "series" });
+  for (let round = 0; round < 3; round++) match.finishRound({
+    winner: "blue", scores: { blue: 2, red: 1 }, participants: totals,
+  });
+  assert.equal(match.participantTotals[0].skillUses, 9);
+  assert.equal(match.participantTotals[0].damageDealt, 3 * totals[0].damageDealt);
+  assert.deepEqual(match.scoreTotals, { blue: 6, red: 3 });
+});

@@ -88,7 +88,9 @@ export function createAI(strategies: Partial<Record<Team, Strategy>> = {}, seed 
       if (hasClearance(position, away, RADIUS, arena)) goal = away;
     } else if (enemy && !inSite && range <= profile.range * 0.85) {
       // Fire while closing on the objective, with intermittent lateral movement.
-      const sidestep = Math.floor((battle.tick + slot * 22) / 95) % 2 === 0 ? 1 : -1;
+      // The map reflection reverses left and right relative to the approach.
+      const phase = Math.floor((battle.tick + slot * 22) / 95) % 2 === 0 ? 1 : -1;
+      const sidestep = team === "blue" ? phase : -phase;
       const lateral = { x: position.x - (aim?.y ?? 0) * 0.25 * sidestep, y: position.y + (aim?.x ?? 0) * 0.25 * sidestep };
       if (hasClearance(position, lateral, RADIUS, arena) && distance(position, site) < 110) goal = lateral;
     } else if (enemy && !inSite && range > profile.range && distance(enemy.position, site) < 110) {

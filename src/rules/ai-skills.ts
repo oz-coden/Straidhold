@@ -48,5 +48,5 @@ export function chooseSkill(fighter: Fighter, battle: Battle, site: Site, attack
       + (distance(site, point) <= CLASSES.control.radius ? 35 : 0) - distance(position, point) / 8;
     if (score > bestScore) { best = point; bestScore = score; }
   }
-  return best ? { kind: "point", point: best } : undefined;
+  return best ? { kind: "point", point: { x: best.x, y: best.y } } : undefined;
 }

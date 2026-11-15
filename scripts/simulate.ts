@@ -2,20 +2,35 @@ import { Engine } from "@simpludify/core";
 import { createAI, type Strategy } from "../src/rules/ai.ts";
 import { TEAMS, type Arena, type Team } from "../src/rules/arena.ts";
 import { Battle, HZ, ROUND_SECONDS, STEP } from "../src/rules/battle.ts";
+import { CLASSES, soloLineup, STANDARD_LINEUP, type ClassId, type Lineup } from "../src/rules/classes.ts";
 import { tacticalMaps } from "../src/rules/maps.ts";
 import { measureTravel } from "./travel.ts";
 
-const pairs = [
-  { blue: "balanced", red: "balanced", seed: 0 },
-  { blue: "flank", red: "center", seed: 1 },
-  { blue: "center", red: "flank", seed: 1 },
-  { blue: "balanced", red: "balanced", seed: 2 },
-] as const satisfies readonly { blue: Strategy; red: Strategy; seed: number }[];
+interface Scenario {
+  readonly blue: Strategy;
+  readonly red: Strategy;
+  readonly seed: number;
+  readonly lineupName: string;
+  readonly lineup: Lineup;
+}
 
-function play(arena: Arena, strategies: typeof pairs[number], travel: ReturnType<typeof measureTravel>) {
+const flank: readonly ClassId[] = ["assassin", "tank", "recon", "control", "assassin"];
+const defense: readonly ClassId[] = ["tank", "support", "recon", "control", "support"];
+const pairs: readonly Scenario[] = [
+  { blue: "balanced", red: "balanced", seed: 0, lineupName: "standard", lineup: STANDARD_LINEUP },
+  { blue: "flank", red: "center", seed: 1, lineupName: "standard", lineup: STANDARD_LINEUP },
+  { blue: "center", red: "flank", seed: 1, lineupName: "standard", lineup: STANDARD_LINEUP },
+  { blue: "balanced", red: "balanced", seed: 2, lineupName: "standard", lineup: STANDARD_LINEUP },
+  { blue: "balanced", red: "balanced", seed: 3, lineupName: "solo-tank", lineup: soloLineup("tank") },
+  { blue: "balanced", red: "balanced", seed: 3, lineupName: "solo-tank-swapped", lineup: { blue: STANDARD_LINEUP.blue, red: soloLineup("tank").blue } },
+  { blue: "flank", red: "center", seed: 4, lineupName: "flank-defense", lineup: { blue: flank, red: defense } },
+  { blue: "center", red: "flank", seed: 4, lineupName: "defense-flank", lineup: { blue: defense, red: flank } },
+];
+
+function play(arena: Arena, { lineup, lineupName, ...strategies }: Scenario, travel: ReturnType<typeof measureTravel>) {
   const engine = new Engine();
   const ai = createAI(strategies, strategies.seed);
-  const battle = new Battle(engine.scene, "terrain.svg", ROUND_SECONDS, ai, arena);
+  const battle = new Battle(engine.scene, "terrain.svg", ROUND_SECONDS, ai, arena, true, 1, lineup);
   const captures = battle.sites.map(({ id }) => ({ id, first: 0, repeat: 0 }));
   const lastOwners = battle.sites.map(({ owner }) => owner);
   const lastSupply = battle.supply.lanes.slice();
@@ -31,6 +46,7 @@ function play(arena: Arena, strategies: typeof pairs[number], travel: ReturnType
   let jungleShots = 0;
   let engagements = 0;
   let hitTick = 0;
+  let combatTicks = 0;
   const hitGaps: number[] = [];
   const shotsPerMinute = Array.from({ length: 5 }, () => 0);
   const pairHits = new Map<string, number>();
@@ -55,6 +71,7 @@ function play(arena: Arena, strategies: typeof pairs[number], travel: ReturnType
       const sector = `${col},${row}`;
       sectors[sector] = (sectors[sector] ?? 0) + 1;
     }
+    if (hitTick && battle.tick - hitTick < HZ * 3) combatTicks++;
     battle.sites.forEach(({ owner }, j) => {
       if (owner === lastOwners[j]) return;
       if (lastOwners[j]) captures[j].repeat++;
@@ -82,8 +99,11 @@ function play(arena: Arena, strategies: typeof pairs[number], travel: ReturnType
   const jungleShare = (team: Team) => Number((100 * jungle[team] / Math.max(1, movement[team])).toFixed(1));
   hitGaps.sort((a, b) => a - b);
   const p90Gap = (hitGaps[Math.ceil(hitGaps.length * 0.9) - 1] ?? 0) / HZ;
+  const skillUses = Object.fromEntries(TEAMS.map((team) =>
+    [team, Object.fromEntries(Object.keys(CLASSES).map((id) => [id, 0]))])) as Record<Team, Record<ClassId, number>>;
+  for (const { team, slot, skillUses: count } of battle.participantStats()) skillUses[team][lineup[team][slot]] += count;
   const result = {
-    map: arena.id, strategies, winner: battle.result, scores: battle.scores, kills: battle.kills,
+    map: arena.id, strategies, lineupName, lineup, combatSeconds: combatTicks / HZ, skillUses, winner: battle.result, scores: battle.scores, kills: battle.kills,
     scoreGap: Math.abs(battle.scores.blue - battle.scores.red), firstHit, shots, jungleShots, sectors,
     captures, activated, cut, laneChanges,
     jungleMovePercent: Object.fromEntries(TEAMS.map((team) => [team, jungleShare(team)])),

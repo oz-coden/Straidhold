@@ -39,15 +39,15 @@ test("accepted damage records exact shield and HP losses and the final same-tick
   hit(a);
   assert.equal(battle.combatEvents.length, 0);
   Object.assign(target.position, { x: 480, y: 232 });
-  target.shield = 20;
-  target.hp = 20;
+  target.shield = 12;
+  target.hp = 12;
   hit(a);
   assert.deepEqual(battle.combatEvents.map((event) => ({
     kind: event.kind, round: event.round, tick: event.tick,
     ...(event.kind === "damage" ? { shield: event.shield, hp: event.hp, lethal: event.lethal } : {}),
-  })), [{ kind: "damage", round: 2, tick: 2, shield: 18, hp: 0, lethal: false }]);
+  })), [{ kind: "damage", round: 2, tick: 2, shield: 10, hp: 0, lethal: false }]);
   hit(a);
-  assert.ok(battle.combatEvents.some((event) => event.kind === "damage" && event.shield === 2 && event.hp === 16));
+  assert.ok(battle.combatEvents.some((event) => event.kind === "damage" && event.shield === 2 && event.hp === 8));
   for (const fighter of [a, b, c]) {
     fighter.attackAt = battle.tick;
     orders.set(fighter.id, { ...IDLE, attack: true });
@@ -72,7 +72,7 @@ test("two same-tick damage sources assist once and respawn starts a fresh histor
   hit(a);
   step(recruit.shieldDelay - 1);
   for (const fighter of [b, c]) orders.set(fighter.id, { ...IDLE, attack: true });
-  target.hp = 30;
+  target.hp = 20;
   step();
   orders.clear();
   assert.deepEqual(battle.combatEvents.filter((event) => event.kind === "defeat").map((event) => [event.attacker, event.assists]), [
@@ -101,8 +101,8 @@ for (const recovery of ["shield", "hq", "full", "last-tick"] as const) {
     if (recovery === "hq") Object.assign(target.position, HQ.red);
     if (recovery === "full") target.hp = 100;
     step(recruit.shieldDelay + (recovery === "last-tick" ? 0 : 1));
-    if (recovery === "shield") assert.ok(target.shield > 82);
-    if (recovery === "hq") assert.ok(target.hp > 52);
+    if (recovery === "shield") assert.ok(target.shield > 90);
+    if (recovery === "hq") assert.ok(target.hp > 60);
     Object.assign(target.position, { x: 480, y: 232 });
     target.shield = 0;
     target.hp = 10;
@@ -208,21 +208,21 @@ test("damage and recovery stats use actual capped changes in both pools", (t) =>
   t.after(() => engine.dispose());
   const { a, target } = attackers(battle);
   hit(a);
-  assert.equal(stats(target).shieldDamage, 18);
+  assert.equal(stats(target).shieldDamage, 10);
   assert.equal(stats(target).hpDamage, 0);
   target.hp = 93;
   Object.assign(target.position, HQ.red);
   step(recruit.shieldDelay + 3 * HZ);
-  assert.equal(stats(target).shieldRecovered, 18);
+  assert.equal(stats(target).shieldRecovered, 10);
   assert.equal(stats(target).hpRecovered, 7);
   Object.assign(target.position, { x: 480, y: 232 });
   target.shield = 2;
   target.hp = 5;
   hit(a);
-  assert.equal(stats(target).shieldDamage, 20);
+  assert.equal(stats(target).shieldDamage, 12);
   assert.equal(stats(target).hpDamage, 5);
   step(target.downUntil - battle.tick);
-  assert.equal(stats(target).shieldRecovered, 18);
+  assert.equal(stats(target).shieldRecovered, 10);
   assert.equal(stats(target).hpRecovered, 7);
 });
 
@@ -233,7 +233,7 @@ test("streak counts kills, records milestones and stops on death or the round bo
   const defeat = () => battle.combatEvents.find((event) => event.kind === "defeat")!;
   for (let kills = 1; kills <= 10; kills++) {
     target.shield = 0;
-    target.hp = 30;
+    target.hp = 20;
     Object.assign(target.position, { x: 480, y: 232 });
     hit(b);
     hit(a);

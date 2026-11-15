@@ -46,8 +46,16 @@ test("accepted damage records exact shield and HP losses and the final same-tick
     kind: event.kind, round: event.round, tick: event.tick,
     ...(event.kind === "damage" ? { shield: event.shield, hp: event.hp, lethal: event.lethal } : {}),
   })), [{ kind: "damage", round: 2, tick: 2, shield: 10, hp: 0, lethal: false }]);
+  const first = battle.combatEvents.find((event) => event.kind === "damage")!;
+  assert.equal(first.attackId, "2:0");
+  assert.equal(first.attacker, a.id);
+  assert.equal(first.originalTarget, target.id);
+  assert.equal(first.target, target.id);
   hit(a);
-  assert.ok(battle.combatEvents.some((event) => event.kind === "damage" && event.shield === 2 && event.hp === 8));
+  const second = battle.combatEvents.find((event) => event.kind === "damage")!;
+  assert.equal(second.attackId, "3:0");
+  assert.equal(second.shield, 2);
+  assert.equal(second.hp, 8);
   for (const fighter of [a, b, c]) {
     fighter.attackAt = battle.tick;
     orders.set(fighter.id, { ...IDLE, attack: true });
@@ -58,6 +66,8 @@ test("accepted damage records exact shield and HP losses and the final same-tick
   assert.equal(defeat.attacker, a.id);
   assert.equal(stats(a).kills, 1);
   assert.equal(stats(target).deaths, 1);
+  assert.equal(stats(target).shieldDamage, 12);
+  assert.equal(stats(target).hpDamage, 12);
   assert.equal(stats(b).assists + stats(c).assists, 0);
   assert.equal(battle.scores.blue, 2);
 });

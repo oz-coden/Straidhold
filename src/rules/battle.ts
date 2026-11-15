@@ -7,6 +7,7 @@ import { distance, placeArena, RADIUS, spawn, TEAMS, toward, trainingArena, type
 import { IDLE, validate, ZERO, type Command } from "./command.ts";
 import { seesUnit } from "./vision.ts";
 import { CombatEvents } from "./combat-events.ts";
+import { beginDamage, resolveDamage, type DamageResult } from "./damage.ts";
 import { CaptureContribution, RoundStats } from "./contribution.ts";
 import { Supply, type SupplyMovement } from "./supply.ts";
 
@@ -34,8 +35,8 @@ export const recruit: FighterProfile = {
   hp: 100,
   shield: 100,
   speed: 151,
-  damage: 18,
-  attackTicks: 40,
+  damage: 10,
+  attackTicks: 30,
   range: 165,
   vision: 235,
   shieldDelay: 3 * HZ,
@@ -246,7 +247,14 @@ export class Battle {
     const previousStreaks = hits.map(({ to }) => this.stats.currentStreak(to.id));
     for (const [i, hit] of hits.entries()) {
       hit.from.revealedUntil = this.tick + 1.5 * HZ;
-      this.damage(hit.to, hit.from, previousStreaks[i]);
+      const context = beginDamage({
+        attackId: `${this.tick}:${i}`, attackerId: hit.from.id, targetId: hit.to.id,
+        baseDamage: hit.from.profile.damage,
+      });
+      // Apply buffs/debuffs here before special handling (barriers, then
+      // redirection). Resolve ordinary shield and HP for each resulting context.
+      const damage = resolveDamage(context, hit.to);
+      if (damage) this.applyDamage(damage, hit.from, hit.to, previousStreaks[i]);
     }
     for (const event of this.combatEvents) {
       if (event.kind === "defeat") this.stats.resetStreak(event.target);
@@ -286,23 +294,21 @@ export class Battle {
     }
   }
 
-  private damage(target: Fighter, attacker: Fighter, stoppedStreak: number) {
-    if (target.hp <= 0) return;
-    const { hp, shield } = target;
-    const overflow = Math.max(0, attacker.profile.damage - target.shield);
-    target.shield = Math.max(0, target.shield - attacker.profile.damage);
-    target.hp = Math.max(0, target.hp - overflow);
+  private applyDamage(damage: DamageResult, attacker: Fighter, target: Fighter, stoppedStreak: number) {
+    const { request, targetId, shieldDamage, hpDamage, remaining, lethal } = damage;
+    target.shield = remaining.shield;
+    target.hp = remaining.hp;
     target.hitAt = this.tick;
-    if (shield > target.shield || hp > target.hp) {
-      this.stats.recordDamage(attacker, target, shield - target.shield, hp - target.hp);
-      this.events.record({
-        kind: "damage", attacker: attacker.id, target: target.id, team: attacker.team,
-        shield: shield - target.shield, hp: hp - target.hp, lethal: target.hp === 0,
-      });
-    }
-    if (target.hp === 0) {
+
+    this.stats.recordDamage(attacker, target, shieldDamage, hpDamage);
+    this.events.record({
+      kind: "damage", attackId: request.attackId, attacker: request.attackerId,
+      originalTarget: request.targetId, target: targetId, team: attacker.team,
+      shield: shieldDamage, hp: hpDamage, lethal,
+    });
+    if (lethal) {
       const { assists, streak } = this.stats.recordDefeat(attacker, target);
-      this.events.record({ kind: "defeat", attacker: attacker.id, target: target.id, team: attacker.team, assists, streak, stoppedStreak });
+      this.events.record({ kind: "defeat", attacker: request.attackerId, target: targetId, team: attacker.team, assists, streak, stoppedStreak });
       const elapsed = 1 - this.remaining / (this.duration / HZ);
       target.downUntil = this.tick + Math.round((2 + 8 * Math.min(1, elapsed / 0.8)) * HZ);
       target.target = undefined;

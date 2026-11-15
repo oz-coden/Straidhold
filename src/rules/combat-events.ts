@@ -1,7 +1,7 @@
 import type { Team } from "./arena.ts";
 
 type EventDetails =
-  | { readonly kind: "damage"; readonly attacker: string; readonly target: string; readonly team: Team;
+  | { readonly kind: "damage"; readonly attackId: string; readonly originalTarget: string; readonly attacker: string; readonly target: string; readonly team: Team;
       readonly shield: number; readonly hp: number; readonly lethal: boolean }
   | { readonly kind: "defeat"; readonly attacker: string; readonly target: string; readonly team: Team;
       readonly assists: readonly string[]; readonly streak: number; readonly stoppedStreak: number }

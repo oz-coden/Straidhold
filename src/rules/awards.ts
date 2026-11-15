@@ -4,7 +4,7 @@ import { contributionUnits, POINT_UNITS, type ParticipantStats } from "./contrib
 export const AWARD_POINTS = { mvp: 100, first: 30, second: 15, streak: 30 } as const;
 
 export type AwardId = "mvp" | "team-mvp" | "kills" | "assists" | "captures" | "guarding"
-  | "movement" | "damage" | "recovery" | "streak";
+  | "movement" | "damage" | "damage-dealt" | "skill-uses" | "recovery" | "streak";
 
 export interface Award {
   readonly id: AwardId;
@@ -20,7 +20,9 @@ const rankings = [
   { id: "captures", title: "最多占領", metric: (row: ParticipantStats) => row.captures },
   { id: "guarding", title: "占領維持の達人", metric: (row: ParticipantStats) => row.guardingUnits },
   { id: "movement", title: "最多移動", metric: (row: ParticipantStats) => row.distanceMoved },
-  { id: "damage", title: "最多被ダメージ", metric: (row: ParticipantStats) => row.shieldDamage + row.hpDamage },
+  { id: "damage", title: "最多被ダメージ", metric: (row: ParticipantStats) => row.shieldDamage + row.hpDamage + row.barrierDamage },
+  { id: "damage-dealt", title: "最多与ダメージ", metric: (row: ParticipantStats) => row.damageDealt },
+  { id: "skill-uses", title: "最多スキル使用", metric: (row: ParticipantStats) => row.skillUses },
   { id: "recovery", title: "最多自己回復", metric: (row: ParticipantStats) => row.shieldRecovered + row.hpRecovered },
   { id: "streak", title: "最多キルストリーク", metric: (row: ParticipantStats) => row.maxStreak },
 ] as const;

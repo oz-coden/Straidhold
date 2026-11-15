@@ -2,7 +2,7 @@ import { awardBonusUnits, awardUnits, type Award } from "../rules/awards.ts";
 import { TEAMS } from "../rules/arena.ts";
 import { contributionUnits, POINTS, POINT_UNITS } from "../rules/contribution.ts";
 import { MatchSeries } from "./game-flow.ts";
-import { PLAYER_ID } from "../rules/classes.ts";
+import { CLASSES, PLAYER_ID } from "../rules/classes.ts";
 import { participantLabel } from "./combat-feedback.ts";
 
 const points = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 });
@@ -73,6 +73,7 @@ export function resultsPanel(host: HTMLElement, awardsHost: HTMLElement, select:
           row.dataset.player = "true";
           name.append("（自分）");
         }
+        name.append(` · ${CLASSES[match.lineup[team][stats.slot]].name}`);
         row.append(name);
         for (const value of [stats.kills, stats.assists, stats.deaths, stats.captures]) {
           row.insertCell().textContent = String(value);
@@ -94,7 +95,9 @@ export function resultsPanel(host: HTMLElement, awardsHost: HTMLElement, select:
           ["基礎貢献", displayPoints(base)],
           ["最大キルストリーク", String(stats.maxStreak)],
           ["移動距離", measure.format(stats.distanceMoved)],
-          ["被ダメージ（HP / シールド）", `${measure.format(stats.hpDamage + stats.shieldDamage)}（${measure.format(stats.hpDamage)} / ${measure.format(stats.shieldDamage)}）`],
+          ["与ダメージ", measure.format(stats.damageDealt)],
+          ["スキル使用", String(stats.skillUses)],
+          ["被ダメージ（HP / シールド / バリア）", `${measure.format(stats.hpDamage + stats.shieldDamage + stats.barrierDamage)}（${measure.format(stats.hpDamage)} / ${measure.format(stats.shieldDamage)} / ${measure.format(stats.barrierDamage)}）`],
           ["自己回復（HP / シールド）", `${measure.format(stats.hpRecovered + stats.shieldRecovered)}（${measure.format(stats.hpRecovered)} / ${measure.format(stats.shieldRecovered)}）`],
         ];
         if (awards) {

@@ -28,7 +28,9 @@ export class StatusEffects {
   add(effect: StatusEffect) { this.entries.push(effect); }
 
   expire(tick: number) {
-    this.entries = this.entries.filter((effect) => effect.endsAt > tick);
+    if (this.entries.some((effect) => effect.endsAt <= tick)) {
+      this.entries = this.entries.filter((effect) => effect.endsAt > tick);
+    }
   }
 
   clearTarget(id: string) {

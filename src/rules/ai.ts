@@ -1,3 +1,4 @@
+import { chooseSkill } from "./ai-skills.ts";
 import type { Point } from "@simpludify/core";
 import { hasClearance, distance, RADIUS, route, toward, type Team } from "./arena.ts";
 import { canSee, SITE_RADIUS, type Battle, type Fighter, type Site } from "./battle.ts";
@@ -110,6 +111,7 @@ export function createAI(strategies: Partial<Record<Team, Strategy>> = {}, seed 
       move,
       aim,
       attack: range <= profile.range,
+      skill: chooseSkill(fighter, battle, site, range <= profile.range),
       deploy: inSite && !state.retreat && !site.device && site.owner !== team,
     };
   };

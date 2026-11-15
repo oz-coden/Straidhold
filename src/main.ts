@@ -1,3 +1,4 @@
+import { createSkillHud } from "./web/skill-hud.ts";
 import { CLASSES, CLASS_IDS, PLAYER_ID, soloLineup, type ClassId, type Lineup } from "./rules/classes.ts";
 import { Aspect, Camera, Game, type Point } from "@simpludify/web";
 import "@simpludify/web/style.css";
@@ -68,6 +69,7 @@ const touchView = {
   move: { base: get("stick"), knob: get("knob") },
   aim: { base: get("aim-stick"), knob: get("aim-knob") },
   deploy: get("touch-deploy"),
+  skill: get<HTMLButtonElement>("touch-skill"),
 };
 function siteHud(arena: Arena) {
   const host = get("sites");
@@ -162,15 +164,18 @@ game.scene("match", (context) => {
   let finished = false;
   let playerHitAt = -Infinity;
   const sites = siteHud(arena);
-  const input = createInput(game, context, settings, touchView, announceMode);
   const ai = createAI();
   const battle = new Battle(context.scene, atlas, match.setup.roundSeconds, (fighter, state) =>
-    fighter.id === PLAYER_ID ? input.sample(fighter.position) : ai(fighter, state), arena, false, match.rounds.length + 1, match.lineup);
+    fighter.id === PLAYER_ID ? input.sample() : ai(fighter, state), arena, false, match.rounds.length + 1, match.lineup);
   const player = battle.fighters.find(({ id }) => id === PLAYER_ID)!;
+  const isCombat = () => intro.phase === "combat" && !finished && battle.result === null && !dialog.open && !leaveDialog.open;
+  const input = createInput(game, context, settings, touchView, announceMode, player, battle, isCombat);
   const feed = createCombatFeed(get("combat-feed"), player.id, player.team);
   const streakPresentation = createStreakPresentation(get("streak-banner"), player.id, HZ);
   const feedback = createHitFeedback(get("hit-marker"), get("damage-edge"), get("vitals"), player.id);
   const vision = new TeamVision(battle.collisions, player.team, battle.fighters, arena);
+  const skillHud = createSkillHud(game, battle, player, vision, get("skill-world"),
+    get("skill-name"), get("skill-state"), get("skill-effects"), touchView.skill);
   const fog = createFog(game, get("battlefield"), vision, arena);
   const minimap = createMinimap(game, get("battlefield"), battle, player, vision, fog.mask);
   const roster = createRoster(get("roster"), battle, player);
@@ -233,10 +238,12 @@ game.scene("match", (context) => {
       fog.paint();
       labels();
       minimap.paint();
+      skillHud.paint(input.preview(), intro.phase === "combat" && !finished, app.dataset.inputMode as InputMode, settings);
       input.paint(get("deploy-state").dataset.ready === "true");
       if (finished || intro.phase !== "combat") touchView.layer.hidden = true;
     };
     fog.mount();
+    skillHud.mount();
     minimap.mount();
     roster.mount();
     roster.paint();
@@ -246,6 +253,7 @@ game.scene("match", (context) => {
     streakPresentation.clear();
     feedback.dispose();
     fog.dispose();
+    skillHud.dispose();
     minimap.dispose();
     roster.dispose();
     if (currentInput === input) {
@@ -425,7 +433,8 @@ for (const id of characterIds) {
   input.addEventListener("change", () => {
     if (input.checked) setup = { ...setup, character: id };
   }, { signal: life.signal });
-  label.append(input, CLASSES[id].name);
+  label.append(input, `${CLASSES[id].icon} ${CLASSES[id].name}`);
+  label.title = CLASSES[id].active;
   choices.append(label);
 }
 
@@ -477,7 +486,7 @@ skipPreparation.addEventListener("click", () => {
 }, { signal: life.signal });
 start.addEventListener("click", () => {
   if (!series) return;
-  void startMatch(series.winner === null ? series : new MatchSeries(series.setup));
+  void startMatch(series.winner === null ? series : new MatchSeries(series.setup, series.lineup));
 }, { signal: life.signal });
 for (const [id, screen] of [["result-title", "title"], ["result-setup", "setup"]] as const) {
   get(id).addEventListener("click", () => {
@@ -490,6 +499,7 @@ for (const [id, screen] of [["result-title", "title"], ["result-setup", "setup"]
 
 get("leave-battle").addEventListener("click", () => {
   if (transition) return;
+  currentInput?.clearTransient();
   game.pause();
   leaveDialog.returnValue = "";
   leaveDialog.showModal();
@@ -517,6 +527,7 @@ function resumeBattle() {
 }
 function openSettings() {
   if (transition || dialog.open) return;
+  currentInput?.clearTransient();
   game.pause();
   dialog.showModal();
 }

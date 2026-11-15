@@ -8,11 +8,15 @@ export interface Settings {
   size: number;
   opacity: number;
   deadZone: number;
+  skillKey: "KeyQ" | "KeyF" | "KeyR";
+  skillPad: "north" | "leftShoulder";
 }
 
 const KEY = "straidhold.controls";
-const defaults: Settings = { mode: "auto", stick: "floating", aimStick: "floating", size: 44, opacity: 76, deadZone: 15 };
+const defaults: Settings = { mode: "auto", stick: "floating", aimStick: "floating", size: 44, opacity: 76, deadZone: 15, skillKey: "KeyQ", skillPad: "north" };
 const modes = ["auto", "keyboard", "touch", "gamepad"] as const;
+const skillKeys = ["KeyQ", "KeyF", "KeyR"] as const;
+const skillPads = ["north", "leftShoulder"] as const;
 const sticks = ["fixed", "floating", "follow"] as const;
 
 function option<T extends string>(value: unknown, choices: readonly T[], fallback: T): T {
@@ -28,6 +32,8 @@ function read(): Settings {
     const data = JSON.parse(localStorage.getItem(KEY) ?? "null");
     if (!data || data.version !== 1) return { ...defaults };
     return {
+      skillKey: option(data.skillKey, skillKeys, defaults.skillKey),
+      skillPad: option(data.skillPad, skillPads, defaults.skillPad),
       mode: option(data.mode, modes, defaults.mode),
       stick: option(data.stick, sticks, defaults.stick),
       aimStick: option(data.aimStick, sticks, defaults.aimStick),
@@ -46,6 +52,8 @@ export function settingsPanel(dialog: HTMLDialogElement, change: (settings: Sett
   const selectMode = form.elements.namedItem("mode") as HTMLSelectElement;
   const selectStick = form.elements.namedItem("stick") as HTMLSelectElement;
   const selectAimStick = form.elements.namedItem("aimStick") as HTMLSelectElement;
+  const skillKey = form.elements.namedItem("skillKey") as HTMLSelectElement;
+  const skillPad = form.elements.namedItem("skillPad") as HTMLSelectElement;
   const size = form.elements.namedItem("size") as HTMLInputElement;
   const opacity = form.elements.namedItem("opacity") as HTMLInputElement;
   const deadZone = form.elements.namedItem("deadZone") as HTMLInputElement;
@@ -58,6 +66,8 @@ export function settingsPanel(dialog: HTMLDialogElement, change: (settings: Sett
   selectMode.value = settings.mode;
   selectStick.value = settings.stick;
   selectAimStick.value = settings.aimStick;
+  skillKey.value = settings.skillKey;
+  skillPad.value = settings.skillPad;
   size.valueAsNumber = settings.size;
   opacity.valueAsNumber = settings.opacity;
   deadZone.valueAsNumber = settings.deadZone;
@@ -66,6 +76,8 @@ export function settingsPanel(dialog: HTMLDialogElement, change: (settings: Sett
     settings.mode = option(selectMode.value, modes, defaults.mode);
     settings.stick = option(selectStick.value, sticks, defaults.stick);
     settings.aimStick = option(selectAimStick.value, sticks, defaults.aimStick);
+    settings.skillKey = option(skillKey.value, skillKeys, defaults.skillKey);
+    settings.skillPad = option(skillPad.value, skillPads, defaults.skillPad);
     settings.size = size.valueAsNumber;
     settings.opacity = opacity.valueAsNumber;
     settings.deadZone = deadZone.valueAsNumber;

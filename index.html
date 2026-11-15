@@ -43,7 +43,7 @@
     <section id="character-screen" class="flow-screen" aria-labelledby="character-heading" hidden>
       <div class="flow-panel">
         <h1 id="character-heading" tabindex="-1" data-screen-focus>キャラクター選択</h1>
-        <p class="flow-muted">試作版ではすべてのクラスが同じ性能で戦います。</p>
+        <p class="flow-muted">クラスごとに共通パッシブとアクティブが1つずつあります。</p>
         <fieldset id="character-choice" class="character-choice">
           <legend>クラス</legend>
         </fieldset>
@@ -111,6 +111,7 @@
       <section id="battlefield" class="battlefield" aria-label="戦場">
         <div id="game"></div>
         <div id="map-labels" aria-hidden="true"></div>
+        <div id="skill-world" aria-hidden="true"></div>
         <div id="damage-edge" aria-hidden="true" hidden></div>
         <span id="hit-marker" aria-hidden="true" hidden></span>
         <ol id="combat-feed" aria-label="戦況通知"></ol>
@@ -119,6 +120,7 @@
         <div id="touch-controls" hidden>
           <div id="stick" class="touch-stick" aria-label="移動スティック"><span id="knob" class="stick-knob"></span></div>
           <div id="aim-stick" class="touch-stick" aria-label="攻撃スティック"><span id="aim-knob" class="stick-knob"></span></div>
+          <button id="touch-skill" type="button" class="touch-button"></button>
           <div id="touch-deploy" class="touch-button">設置</div>
         </div>
         <div id="respawn" class="respawn" role="status" hidden></div>
@@ -138,6 +140,10 @@
           <div class="vital"><label for="shield">シールド</label><meter id="shield" min="0" max="100" value="100"></meter><output id="shield-value">100</output></div>
         </div>
         <div class="actions"><span id="attack-state">攻撃待機</span><span id="deploy-state">拠点に近づくと設置可能</span><span id="terrain-state" hidden></span></div>
+        <section id="skill-hud" aria-label="クラス能力">
+          <div><span id="skill-name"></span> <output id="skill-state"></output></div>
+          <div id="skill-effects"></div>
+        </section>
         <div id="input-hint" class="input-hint"></div>
       </footer>
     </main>
@@ -185,6 +191,12 @@
         </label>
         <label>デッドゾーン（共通） <output id="dead-zone-label"></output>
           <input type="range" name="deadZone" min="0" max="45" step="1">
+        </label>
+        <label>スキルキー
+          <select name="skillKey"><option value="KeyQ">Q</option><option value="KeyF">F</option><option value="KeyR">R</option></select>
+        </label>
+        <label>ゲームパッドのスキルボタン
+          <select name="skillPad"><option value="north">北ボタン（Y / △）</option><option value="leftShoulder">LB / L1</option></select>
         </label>
         <button class="primary" type="submit">閉じる</button>
       </form>

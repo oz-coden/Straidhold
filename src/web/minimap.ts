@@ -97,9 +97,12 @@ export function createMinimap(game: Game<"briefing" | "match">, host: HTMLElemen
         : svg("path", { d: "M0,-17L17,0 0,17 -17,0Z", fill: colors[fighter.team], stroke: "#190f19", "stroke-width": 4 });
     marker.setAttribute("class", isPlayer ? "minimap-player" : "minimap-unit");
     marker.setAttribute("data-team", fighter.team);
-    return { fighter, marker, isPlayer };
+    const snapshot = svg("path", { d: "M0,-23L23,0 0,23 -23,0Z", fill: "none",
+      stroke: "#c6f2ff", "stroke-width": 6, "stroke-dasharray": "10 5", class: "minimap-snapshot" });
+    snapshot.style.display = "none";
+    return { fighter, marker, snapshot, isPlayer };
   });
-  for (const { marker, isPlayer } of markers) if (!isPlayer) icons.append(marker);
+  for (const { marker, snapshot, isPlayer } of markers) if (!isPlayer) icons.append(snapshot, marker);
   icons.append(markers.find(({ isPlayer }) => isPlayer)!.marker);
   panel.append(map, mask, icons);
 
@@ -133,7 +136,12 @@ export function createMinimap(game: Game<"briefing" | "match">, host: HTMLElemen
         line.setAttribute("stroke-dasharray", owner === "red" ? `${11 * size} ${7 * size}` : "");
       });
     }
-    for (const { fighter, marker, isPlayer } of markers) {
+    const contacts = battle.abilities.recon(player.team);
+    for (const { fighter, marker, snapshot, isPlayer } of markers) {
+      const scan = vision.shows(fighter) ? undefined : contacts.get(fighter.id);
+      snapshot.style.display = scan ? "" : "none";
+      if (scan) snapshot.setAttribute("transform", `translate(${scan.position.x} ${scan.position.y}) scale(${size})`);
+      else snapshot.removeAttribute("transform");
       if (!vision.shows(fighter)) {
         marker.removeAttribute("transform");
         marker.style.display = "none";

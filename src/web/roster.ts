@@ -1,3 +1,4 @@
+import { CLASSES } from "../rules/classes.ts";
 import { TEAMS } from "../rules/arena.ts";
 import { HZ, type Battle, type Fighter } from "../rules/battle.ts";
 
@@ -35,8 +36,8 @@ export function createRoster(host: HTMLElement, battle: Battle, player: Fighter)
           if (seconds === portrait.previous) continue;
           portrait.previous = seconds;
           icon.dataset.state = seconds ? "down" : "alive";
-          icon.textContent = seconds ? String(seconds) : "";
-          icon.setAttribute("aria-label", `${fighter === player ? "自分" : `${name}${fighter.slot + 1}`} ${seconds ? `復活まで${seconds}秒` : "生存"}`);
+          icon.textContent = seconds ? String(seconds) : CLASSES[fighter.classId].icon;
+          icon.setAttribute("aria-label", `${fighter === player ? "自分" : `${name}${fighter.slot + 1}`} ${CLASSES[fighter.classId].name} ${seconds ? `復活まで${seconds}秒` : "生存"}`);
         }
         const text = `${alive}/${portraits.length}`;
         if (count.textContent !== text) {

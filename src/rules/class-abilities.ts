@@ -138,7 +138,7 @@ export class ClassAbilities {
     const { arena, collisions } = this.battle;
     return Number.isFinite(point.x) && Number.isFinite(point.y)
       && point.x >= 0 && point.y >= 0 && point.x < arena.width && point.y < arena.height
-      && distance(caster.position, point) <= range && hasClearance(point, point, 0, arena)
+      && distance(caster.position, point) <= range + 1e-8 && hasClearance(point, point, 0, arena)
       && !castTerrain(collisions, caster.position, point);
   }
 

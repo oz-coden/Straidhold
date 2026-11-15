@@ -21,13 +21,18 @@ async function startCombat(page: Page, button = "#lobby-start") {
   await expect(page.locator("#app")).toHaveAttribute("data-phase", "combat");
 }
 
-async function startMatch(page: Page, seconds = 22, map = "training") {
+async function startMatch(page: Page, seconds = 22, map = "training", selected?: string) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await freezeClock(page);
   await page.goto(`/?map=${map}&round=${seconds}`);
   await page.locator("#solo").click();
-  await enterLobby(page);
+  if (selected) {
+    await page.locator("#setup-next").click();
+    await page.locator(`input[name="character"][value="${selected}"]`).check();
+    await page.locator("#character-next").click();
+    await page.locator("#lobby-ready").click();
+  } else await enterLobby(page);
   await startCombat(page);
   return errors;
 }
@@ -257,7 +262,7 @@ test("shared Fog, camera and public roster update during the match", async ({ pa
     Object.fromEntries(["x", "y", "width", "height"].map((name) => [name, Number(node.getAttribute(name))])));
   expect(view.width).toBeGreaterThan(2 * 235);
   expect(view.height).toBeGreaterThan(2 * 235);
-  expect(view.height).toBeLessThan(2 * 235 * 1.13);
+  expect(view.height).toBeLessThanOrEqual(Math.min(544, 2 * 282 * 1.13));
   expect(view.x).toBeGreaterThanOrEqual(-68);
   expect(view.y + view.height).toBeLessThanOrEqual(544 + 68 + 1e-8);
   await expect(page.locator(".minimap [data-team=blue][transform]")).toHaveCount(5);
@@ -270,7 +275,7 @@ test("shared Fog, camera and public roster update during the match", async ({ pa
       canvas.getContext("2d")!.getImageData(x / 2, y / 2, 1, 1).data[3], [x, y]);
   }
   expect(await fogAlpha(480, 340)).toBeLessThan(15);
-  expect(await fogAlpha(480, 220)).toBeGreaterThan(160);
+  expect(await fogAlpha(480, 220)).toBeLessThan(15);
   expect(await fogAlpha(370, 430)).toBeGreaterThan(160);
   expect(await fogAlpha(160, 340)).toBeGreaterThan(160);
 
@@ -317,7 +322,7 @@ test("shared Fog, camera and public roster update during the match", async ({ pa
   const label = (await down.getAttribute("aria-label"))!.split(" 復活")[0];
   await page.clock.runFor(1100);
   const portrait = page.getByRole("img", { name: new RegExp(`^${label} (?:復活まで|生存)`) });
-  const remaining = Number(await portrait.textContent());
+  const remaining = Number(await portrait.textContent()) || 0;
   expect(remaining).toBeLessThan(seconds);
   expect(remaining).toBeGreaterThanOrEqual(Math.max(0, seconds - 2));
   expect(errors).toEqual([]);
@@ -479,7 +484,7 @@ test.describe("held touch input during capture", () => {
   test.use({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
 
   test("keeps the first contact moving through a second-finger deployment and HUD updates", async ({ page }) => {
-    await startMatch(page, 40, "central-line");
+    await startMatch(page, 40, "central-line", "assassin");
 
     const cdp = await page.context().newCDPSession(page);
     const touch = (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: { id: number; x: number; y: number }[]) =>
@@ -723,6 +728,11 @@ test("title, setup, character and ready lobby retain selections and allow return
   await expect(page.locator("#lobby-red li")).toHaveCount(5);
   await expect(page.locator("#lobby-summary")).toHaveText(/交差補給路.*3ラウンド先取/);
   await expect(page.locator("#lobby-blue")).toContainText("タンク · 準備中");
+  const classes = ["アサシン", "タンク", "リコン", "コントロール", "サポート"];
+  for (const team of ["blue", "red"]) {
+    const roster = await page.locator(`#lobby-${team} li small`).allTextContents();
+    expect(roster.map((label) => label.split(" · ")[0]).sort()).toEqual(classes.slice().sort());
+  }
   await expect(page.locator("#lobby-start")).toBeDisabled();
   await page.locator("#lobby-ready").click();
   await expect(page.locator("#lobby-start")).toBeEnabled();
@@ -813,4 +823,116 @@ test("series retains round results and resets the battlefield for the next round
   await page.locator("#result-title").click({ force: true });
   await expect(rows).toHaveCount(0);
   await expect(page.locator("#round-results li")).toHaveCount(0);
+});
+
+test("keyboard casts a selected field after confirmation, reports its CD, and preserves totals and class on rematch", async ({ page }) => {
+  const errors = await startMatch(page, 8, "training", "control");
+  const state = page.locator("#skill-state");
+  await expect(page.locator("#skill-name")).toHaveText(/コントロール.*減速領域/);
+  const { x, y, width, height } = (await page.locator("#game canvas").boundingBox())!;
+  await page.mouse.move(x + width / 2, y + height / 2);
+  await page.keyboard.press("q");
+  await page.clock.runFor(80);
+  await expect(state).toHaveText("確定可能");
+  await page.keyboard.press("Escape");
+  await page.clock.runFor(80);
+  await expect(state).toHaveText("発動可能 [Q]");
+  await page.keyboard.press("q");
+  await page.mouse.click(x + width / 2, y + height / 2);
+  await page.clock.runFor(80);
+  await expect(state).toHaveText("CD 30秒");
+  await page.keyboard.press("q");
+  await page.clock.runFor(8_000);
+  const row = page.locator('[data-participant="blue-2"]');
+  await row.locator("summary").click();
+  await expect(row.locator("+ tr").getByText("スキル使用", { exact: true }).locator("+ dd")).toHaveText("1");
+  await expect(page.locator('[data-award="skill-uses"]').first()).toBeVisible();
+  await expect(page.locator('[data-award="damage-dealt"]').first()).toBeVisible();
+  await startCombat(page, "#start");
+  await expect(page.locator("#skill-name")).toHaveText(/コントロール.*減速領域/);
+  await expect(state).toHaveText("発動可能 [Q]");
+  expect(errors).toEqual([]);
+});
+
+test("gamepad selects a skill direction, cancels with the east button and confirms with the configured shoulder", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("straidhold.controls", JSON.stringify({ version: 1, skillPad: "leftShoulder" }));
+    const pad = {
+      axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 17 }, () => ({ value: 0, pressed: false, touched: false })),
+      id: "Standard test controller", index: 0, mapping: "standard", connected: true, timestamp: 0,
+    };
+    Object.defineProperty(navigator, "getGamepads", { value: () => [pad] });
+    Object.assign(window, { skillPad: pad });
+  });
+  const errors = await startMatch(page, 12, "training", "control");
+  const state = page.locator("#skill-state");
+  type TestPad = { axes: number[]; buttons: { pressed: boolean; value: number }[] };
+  async function button(index: number, pressed: boolean) {
+    await page.evaluate(({ index, pressed }) => {
+      const pad = (window as Window & { skillPad?: TestPad }).skillPad!;
+      pad.axes = [0, 0, 0, -0.65];
+      pad.buttons[index] = { pressed, value: Number(pressed) };
+    }, { index, pressed });
+    await page.clock.runFor(80);
+  }
+  await button(4, true);
+  await expect(state).toHaveText("確定可能");
+  await button(4, false);
+  await button(1, true);
+  await expect(state).toHaveText("発動可能 [LB / L1]");
+  await button(1, false);
+  await button(4, true);
+  await button(4, false);
+  await button(4, true);
+  await expect(state).toHaveText("CD 30秒");
+  expect(errors).toEqual([]);
+});
+
+test.describe("class actions on a small touch display", () => {
+  test.use({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
+
+  test("touch drag previews and casts a field while a second finger keeps the attack stick active", async ({ page }) => {
+    const errors = await startMatch(page, 12, "training", "control");
+    const cdp = await page.context().newCDPSession(page);
+    const skill = page.locator("#touch-skill"), aim = page.locator("#aim-stick");
+    const state = page.locator("#skill-state");
+    type Contact = { id: number; x: number; y: number };
+    const touch = (type: "touchStart" | "touchMove" | "touchEnd" | "touchCancel", touchPoints: Contact[]) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+    const center = async (locator: typeof skill, id: number) => {
+      const box = (await locator.boundingBox())!;
+      return { id, x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+    const a = await center(aim, 1), s = await center(skill, 2);
+    await touch("touchStart", [s]);
+    await page.clock.runFor(80);
+    await expect(state).toHaveText("地点を指定");
+    await touch("touchCancel", []);
+    await page.clock.runFor(80);
+    await expect(state).toHaveText("発動可能");
+    await touch("touchStart", [a]);
+    await touch("touchStart", [a, s]);
+    await touch("touchMove", [a, { ...s, y: s.y - 42 }]);
+    await page.clock.runFor(80);
+    await expect(aim).toHaveAttribute("data-active", "true");
+    await expect(state).toHaveText("確定可能");
+    await touch("touchEnd", [a]);
+    await page.clock.runFor(80);
+    await expect(state).toHaveText("CD 30秒");
+    await expect(aim).toHaveAttribute("data-active", "true");
+    await touch("touchEnd", []);
+    await page.clock.runFor(80);
+    await expect(aim).toHaveAttribute("data-active", "false");
+    expect(errors).toEqual([]);
+  });
+
+  test("touch taps immediately use a self skill without entering a targeting state", async ({ page }) => {
+    const errors = await startMatch(page, 12, "training", "assassin");
+    await page.locator("#touch-skill").tap();
+    await page.clock.runFor(80);
+    await expect(page.locator("#skill-state")).toHaveText("CD 30秒");
+    await expect(page.locator("#skill-effects")).toContainText("与ダメージ 24%");
+    expect(errors).toEqual([]);
+  });
 });

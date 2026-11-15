@@ -249,13 +249,6 @@ dialog button { justify-self: end; }
   background: #152637;
   font: 800 11px/1 system-ui, sans-serif;
 }
-.roster-unit[data-state="alive"]::after {
-  content: "";
-  width: 11px;
-  height: 12px;
-  background: currentColor;
-  clip-path: polygon(28% 0, 72% 0, 100% 33%, 89% 76%, 71% 100%, 29% 100%, 11% 76%, 0 33%);
-}
 .roster-unit[data-state="down"] { background: repeating-linear-gradient(135deg, #0e1823 0 3px, #1b2734 3px 5px); }
 .roster-player { border-color: #e8f3fc; }
 .site-icon {
@@ -290,12 +283,11 @@ dialog button { justify-self: end; }
   .tactical-strip { grid-template-columns: 1fr; gap: 4px; }
   #roster { justify-content: center; gap: 15px; min-height: 22px; }
   .roster-unit { width: 18px; height: 18px; font-size: 10px; }
-  .roster-unit[data-state="alive"]::after { width: 9px; height: 10px; }
 }
 @media (max-height: 420px), (max-width: 480px) {
   .battlefield { --streak-side-space: max(6.25rem, calc(clamp(92px, 19vw, 148px) + 9px)); }
   .minimap { width: clamp(92px, 19vw, 148px); top: 5px; right: 5px; }
-  #app[data-input-mode="touch"] .minimap:not([data-map="training"]) { width: clamp(76px, 15vw, 112px); }
+  #app[data-input-mode="touch"] .minimap { width: clamp(76px, 15vw, 112px); }
   .site-icon { line-height: 13px; min-width: 15px; }
 }
 
@@ -629,11 +621,28 @@ dialog button { justify-self: end; }
 }
 #skill-state { color: var(--muted); margin-inline-start: 4px; white-space: nowrap; }
 #skill-state[data-ready="true"] { color: #a5edc8; }
-#skill-effects { color: #d2c4e8; font-size: 11px; }
+#skill-hud > div:first-child { line-height: 1.4; white-space: nowrap; }
+#skill-effects {
+  height: 1.4em;
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  color: #d2c4e8;
+  font-size: 11px;
+}
 @media (max-width: 720px), (max-height: 490px) {
-  .match-footer { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
-  .match-footer .actions { grid-column: 1 / -1; display: flex; justify-self: stretch; justify-content: space-between; min-width: 0; font-size: 10px; }
-  .match-footer .actions span { min-width: 0; }
-  #skill-hud { grid-area: 1 / 2; padding-inline: 5px 0; font-size: 11px; }
+  .match-footer { grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.35fr); }
+  .match-footer .actions { justify-self: stretch; min-width: 0; font-size: 10px; text-align: left; }
+  #skill-hud { padding-inline: 5px 0; font-size: 11px; }
   #skill-effects { font-size: 10px; }
+}
+
+@media (max-width: 580px) {
+  #skill-state { display: block; margin-inline-start: 0; }
+}
+@media (max-width: 440px) {
+  .match-footer { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+  .match-footer .actions { grid-column: 1 / -1; display: flex; justify-content: space-between; }
+  .match-footer .actions span { min-width: 0; }
+  #skill-hud { grid-area: 1 / 2; }
 }

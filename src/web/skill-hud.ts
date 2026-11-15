@@ -40,19 +40,28 @@ export function createSkillHud(
       : preview ? (preview.order ? "確定可能" : ability.target === "ally" ? "味方を指定" : "地点を指定")
       : `発動可能${key ? ` [${key}]` : ""}`);
     button.title = state.textContent ?? "";
-    const effects = combat && player.hp > 0 ? battle.abilities.effects.effective(player)
-      .filter(({ id, endsAt }) => effectLabels[id] && (endsAt !== Infinity || id === EFFECT_IDS.tank))
+    const activeEffects = combat && player.hp > 0 ? battle.abilities.effects.effective(player) : [];
+    const effects = activeEffects.filter(({ id, endsAt }) => effectLabels[id] && endsAt !== Infinity)
       .map(({ id, strength, endsAt }) =>
-        `${effectLabels[id]} ${Math.round(100 * strength)}%${endsAt === Infinity ? "" : ` ${seconds(endsAt - battle.tick)}`}`) : [];
+        `${effectLabels[id]} ${Math.round(100 * strength)}% ${seconds(endsAt - battle.tick)}`);
     const barrier = battle.abilities.barrier(player);
     if (barrier) effects.push(`✚ バリア ${Math.ceil(barrier.capacity)} · ${seconds(barrier.endsAt - battle.tick)}`);
+    for (const ally of battle.fighters) {
+      const gifted = battle.abilities.barrier(ally);
+      if (gifted?.sourceId === player.id) effects.push(
+        `✚ バリア先 ${participantLabel(ally.id)} ${Math.ceil(gifted.capacity)} · ${seconds(gifted.endsAt - battle.tick)}`);
+    }
     const guard = battle.abilities.protecting(player);
     if (guard) effects.push(`◆ 護衛先 ${participantLabel(guard.target.id)} · ${seconds(guard.endsAt - battle.tick)}`);
     for (const { source, endsAt } of battle.abilities.protectors(player)) {
       effects.push(`◆ 護衛中 ${participantLabel(source.id)} · ${seconds(endsAt - battle.tick)}`);
     }
-    setText(status, effects.join("　"));
-    status.hidden = effects.length === 0;
+    for (const { id, strength, endsAt } of activeEffects) {
+      if (endsAt === Infinity && effectLabels[id]) effects.push(`${effectLabels[id]} ${Math.round(100 * strength)}%`);
+    }
+    const text = effects.join("　");
+    setText(status, text);
+    if (status.title !== text) status.title = text;
   }
 
   const screen = (point: Point) => game.worldToScreen({ space: "world", ...point });

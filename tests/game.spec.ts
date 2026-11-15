@@ -913,11 +913,12 @@ test.describe("class actions on a small touch display", () => {
     await expect(state).toHaveText("発動可能");
     await touch("touchStart", [a]);
     await touch("touchStart", [a, s]);
-    await touch("touchMove", [a, { ...s, y: s.y - 42 }]);
+    const dragged = { ...s, y: s.y - 42 };
+    await touch("touchMove", [a, dragged]);
     await page.clock.runFor(80);
     await expect(aim).toHaveAttribute("data-active", "true");
     await expect(state).toHaveText("確定可能");
-    await touch("touchEnd", [a]);
+    await touch("touchEnd", [dragged]);
     await page.clock.runFor(80);
     await expect(state).toHaveText("CD 30秒");
     await expect(aim).toHaveAttribute("data-active", "true");
